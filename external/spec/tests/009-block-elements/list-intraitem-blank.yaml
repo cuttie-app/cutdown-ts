@@ -1,0 +1,32 @@
+id: list-intraitem-blank
+section: "9.7.5"
+description: Blank line + col-0 marker resets the list; blank line + indented content absorbed making item block-mode and list loose
+
+input: |
+  - First item
+
+  - Second item
+
+    This starts a new paragraph inside item two.
+
+ast:
+  - type: List
+    loose: false
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: First item
+  - type: List
+    loose: true
+    children:
+      - type: ListItem
+        children:
+          - type: Paragraph
+            children:
+              - type: Text
+                value: Second item
+          - type: Paragraph
+            children:
+              - type: Text
+                value: This starts a new paragraph inside item two.

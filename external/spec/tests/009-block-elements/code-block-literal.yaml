@@ -1,0 +1,13 @@
+id: code-block-literal
+section: "9.4"
+description: Content inside a CodeBlock is literal; inline markup is not parsed
+
+input: |
+  ```
+  **bold** and __strong__
+  ```
+
+ast:
+  - type: CodeBlock
+    language: text
+    content: "**bold** and __strong__"

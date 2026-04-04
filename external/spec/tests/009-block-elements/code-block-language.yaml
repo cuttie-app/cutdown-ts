@@ -1,0 +1,13 @@
+id: code-block-language
+section: "9.4"
+description: Language identifier on opening fence is stored in the language field
+
+input: |
+  ```python
+  x = 1
+  ```
+
+ast:
+  - type: CodeBlock
+    language: python
+    content: x = 1

@@ -1,0 +1,24 @@
+id: cdn-0010-thematicbreak-text-dropped
+section: "9.3"
+description: "Non-whitespace text between --- and optional {attrs} is silently dropped; ThematicBreak emitted normally; CDN-0010 warning"
+
+input: |
+  Before
+
+  --- some text {.x}
+
+pages:
+  - children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: Before
+  - children:
+      - type: ThematicBreak
+        attributes:
+          - key: class
+            value: [x]
+
+diagnostics:
+  - code: CDN-0010
+    level: warning

@@ -1,0 +1,12 @@
+id: escape-backslash
+section: "4"
+description: "\\\\ produces a single literal backslash (special char escaped)"
+
+input: |
+  \\
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: '\'

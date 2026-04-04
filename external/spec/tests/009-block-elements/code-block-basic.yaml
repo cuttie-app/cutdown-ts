@@ -1,0 +1,13 @@
+id: code-block-basic
+section: "9.4"
+description: Fenced code block with no language tag defaults to language "text"
+
+input: |
+  ```
+  hello world
+  ```
+
+ast:
+  - type: CodeBlock
+    language: text
+    content: hello world

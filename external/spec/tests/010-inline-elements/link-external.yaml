@@ -1,0 +1,16 @@
+id: link-external
+section: "10.7"
+description: "[text](url) produces a Link with kind=external and href"
+
+input: |
+  [click here](https://example.com)
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Link
+        kind: external
+        href: https://example.com
+        children:
+          - type: Text
+            value: click here

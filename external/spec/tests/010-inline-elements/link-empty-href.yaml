@@ -1,0 +1,13 @@
+id: link-empty-href
+section: "10.7"
+description: "[]() with empty text and empty href is valid; both are preserved in the AST"
+
+input: |
+  []()
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Link
+        kind: external
+        href: ""

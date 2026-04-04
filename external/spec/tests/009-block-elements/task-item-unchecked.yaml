@@ -1,0 +1,17 @@
+id: task-item-unchecked
+section: "9.7.4"
+description: "- [ ] produces TaskItem with checked: false"
+
+input: |
+  - [ ] Buy milk
+
+ast:
+  - type: List
+    ordered: false
+    loose: false
+    children:
+      - type: TaskItem
+        checked: false
+        children:
+          - type: Text
+            value: Buy milk

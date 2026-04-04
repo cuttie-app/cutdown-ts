@@ -1,0 +1,31 @@
+id: section-inside-listitem
+section: "7.2"
+description: A heading inside a list item creates a Section bounded by the ListItem container
+
+input: |
+  - intro
+
+    = Inner Section
+
+    paragraph
+
+ast:
+  - type: List
+    loose: true
+    children:
+      - type: ListItem
+        children:
+          - type: Paragraph
+            children:
+              - type: Text
+                value: intro
+          - type: Section
+            level: 1
+            heading:
+              - type: Text
+                value: Inner Section
+            children:
+              - type: Paragraph
+                children:
+                  - type: Text
+                    value: paragraph

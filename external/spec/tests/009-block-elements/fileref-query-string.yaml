@@ -1,0 +1,12 @@
+id: fileref-query-string
+section: "9.9"
+description: A query string in a FileRef path is included in src verbatim; no separate query field is produced
+
+input: |
+  /path/to/file.ext?q=value
+
+ast:
+  - type: FileRef
+    src: /path/to/file.ext?q=value
+    fragment: null
+    group: null

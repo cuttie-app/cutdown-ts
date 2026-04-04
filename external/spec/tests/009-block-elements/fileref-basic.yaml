@@ -1,0 +1,10 @@
+id: fileref-basic
+section: "9.9"
+description: A line beginning with / is a FileRef; unknown extension yields group null
+
+input: |
+  /docs/report.pdf
+
+ast:
+  - type: FileRef
+    src: /docs/report.pdf

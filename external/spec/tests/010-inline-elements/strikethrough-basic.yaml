@@ -1,0 +1,14 @@
+id: strikethrough-basic
+section: "10.4"
+description: "~~ delimiters produce Strikethrough; single ~ is literal text"
+
+input: |
+  ~~struck~~
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Strikethrough
+        children:
+          - type: Text
+            value: struck

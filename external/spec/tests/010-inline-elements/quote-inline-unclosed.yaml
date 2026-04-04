@@ -1,0 +1,12 @@
+id: quote-inline-unclosed
+section: "10.13"
+description: "Unclosed \"\" is emitted as literal Text"
+
+input: |
+  "" unclosed
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: '"" unclosed'

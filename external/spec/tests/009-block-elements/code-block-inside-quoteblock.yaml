@@ -1,0 +1,15 @@
+id: code-block-inside-quoteblock
+section: "9.4"
+description: CodeBlock inside a QuoteBlock is legal; only the > prefix is stripped (no additional space stripping)
+
+input: |
+  > ```js
+  > const x = 1
+  > ```
+
+ast:
+  - type: QuoteBlock
+    children:
+      - type: CodeBlock
+        language: js
+        content: const x = 1

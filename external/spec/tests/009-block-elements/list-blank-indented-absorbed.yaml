@@ -1,0 +1,18 @@
+id: list-blank-indented-absorbed
+section: "9.7.5"
+description: Blank line followed by an indented (col > 0) marker is absorbed by the list parser; list continues and is marked loose
+
+input: "    - item A\n\n    - item B\n"
+
+ast:
+  - type: List
+    loose: true
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: item A
+      - type: ListItem
+        children:
+          - type: Text
+            value: item B

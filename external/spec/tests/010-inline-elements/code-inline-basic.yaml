@@ -1,0 +1,12 @@
+id: code-inline-basic
+section: "10.5"
+description: "`` delimiters produce CodeInline with literal value; no inline parsing inside"
+
+input: |
+  ``code``
+
+ast:
+  - type: Paragraph
+    children:
+      - type: CodeInline
+        value: code

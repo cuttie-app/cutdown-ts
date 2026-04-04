@@ -1,0 +1,19 @@
+id: list-unordered
+section: "9.7.1"
+description: Lines starting with "- " form a tight unordered List
+
+input: |
+  - Item one
+  - Item two
+
+ast:
+  - type: List
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: Item one
+      - type: ListItem
+        children:
+          - type: Text
+            value: Item two

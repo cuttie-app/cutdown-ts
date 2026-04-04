@@ -1,0 +1,12 @@
+id: paragraph-basic
+section: "9.2"
+description: Contiguous non-blank lines not matching any block construct form a Paragraph
+
+input: |
+  Hello world.
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: Hello world.

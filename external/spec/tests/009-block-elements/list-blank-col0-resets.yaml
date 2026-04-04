@@ -1,0 +1,24 @@
+id: list-blank-col0-resets
+section: "9.7.5"
+description: Blank line followed by a col-0 list marker ends the current List and starts a new one
+
+input: |
+  - item A
+
+  - item B
+
+ast:
+  - type: List
+    loose: false
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: item A
+  - type: List
+    loose: false
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: item B

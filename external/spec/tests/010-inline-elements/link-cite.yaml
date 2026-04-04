@@ -1,0 +1,16 @@
+id: link-cite
+section: "10.7"
+description: "[text][@id] produces a Link with kind=cite; @ sigil is consumed"
+
+input: |
+  [Smith 2024][@smith2024]
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Link
+        kind: cite
+        target: smith2024
+        children:
+          - type: Text
+            value: Smith 2024

@@ -1,0 +1,8 @@
+id: document-empty
+section: "7"
+description: Empty document produces exactly one Ghost Page (null meta, empty children)
+
+input: ""
+
+pages:
+  - {}

@@ -1,0 +1,21 @@
+id: list-ordered
+section: "9.7.2"
+description: Lines starting with "{n}. " form a tight ordered List; start captures first item number
+
+input: |
+  1. First
+  2. Second
+
+ast:
+  - type: List
+    ordered: true
+    start: 1
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: First
+      - type: ListItem
+        children:
+          - type: Text
+            value: Second

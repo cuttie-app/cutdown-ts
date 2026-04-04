@@ -1,0 +1,16 @@
+id: link-ref
+section: "10.7"
+description: "[text][^id] produces a Link with kind=ref; ^ sigil is consumed"
+
+input: |
+  [note text][^note-id]
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Link
+        kind: ref
+        target: note-id
+        children:
+          - type: Text
+            value: note text

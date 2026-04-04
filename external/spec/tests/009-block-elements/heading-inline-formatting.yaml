@@ -1,0 +1,19 @@
+id: heading-inline-formatting
+section: "9.1"
+description: Heading text is full inline content; inline formatting is parsed normally
+
+input: |
+  = Title with **bold** word
+
+ast:
+  - type: Section
+    level: 1
+    heading:
+      - type: Text
+        value: "Title with "
+      - type: Emphasis
+        children:
+          - type: Text
+            value: bold
+      - type: Text
+        value: " word"

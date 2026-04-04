@@ -1,0 +1,14 @@
+id: text-break
+section: "10.6"
+description: Backslash as last character of a line produces a TextBreak node
+
+input: "line one\\\nline two\n"
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: line one
+      - type: TextBreak
+      - type: Text
+        value: line two

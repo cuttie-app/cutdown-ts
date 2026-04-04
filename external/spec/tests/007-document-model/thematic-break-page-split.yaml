@@ -1,0 +1,17 @@
+id: thematic-break-page-split
+section: "7.4"
+description: ThematicBreak opens a new Page; becomes the first child of that new Page
+
+input: |
+  Hello
+
+  ---
+
+pages:
+  - children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: Hello
+  - children:
+      - type: ThematicBreak

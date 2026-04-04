@@ -1,0 +1,22 @@
+id: list-mixed-task-numeric
+section: "9.7"
+description: "TaskItem-first list with numeric item: whole list is unordered, numeric item becomes plain ListItem"
+
+input: |
+  - [ ] Task item first
+  1. Numeric becomes unordered
+
+ast:
+  - type: List
+    ordered: false
+    loose: false
+    children:
+      - type: TaskItem
+        checked: false
+        children:
+          - type: Text
+            value: Task item first
+      - type: ListItem
+        children:
+          - type: Text
+            value: Numeric becomes unordered

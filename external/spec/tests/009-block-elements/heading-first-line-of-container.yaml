@@ -1,0 +1,24 @@
+id: heading-first-line-of-container
+section: "9.1"
+description: A heading as the first non-comment line of a block container needs no preceding blank line
+
+input: |
+  :::note
+  = Title
+  content
+  :::
+
+ast:
+  - type: NamedBlock
+    name: note
+    children:
+      - type: Section
+        level: 1
+        heading:
+          - type: Text
+            value: Title
+        children:
+          - type: Paragraph
+            children:
+              - type: Text
+                value: content

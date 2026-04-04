@@ -1,0 +1,26 @@
+id: thematic-break-inside-namedblock
+section: "9.3"
+description: ThematicBreak inside a NamedBlock emits a ThematicBreak node without creating a new Page
+
+input: |
+  :::note
+  before
+
+  ---
+
+  after
+  :::
+
+ast:
+  - type: NamedBlock
+    name: note
+    children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: before
+      - type: ThematicBreak
+      - type: Paragraph
+        children:
+          - type: Text
+            value: after

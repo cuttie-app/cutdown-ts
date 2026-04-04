@@ -1,0 +1,16 @@
+id: heading-attrs
+section: "9.1"
+description: Last {attrs} token on the heading line is claimed by the Section node
+
+input: |
+  = Hello {#h1}
+
+ast:
+  - type: Section
+    level: 1
+    heading:
+      - type: Text
+        value: Hello
+    attributes:
+      - key: id
+        value: h1

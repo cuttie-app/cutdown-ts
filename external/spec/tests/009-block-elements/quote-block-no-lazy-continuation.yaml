@@ -1,0 +1,19 @@
+id: quote-block-no-lazy-continuation
+section: "9.6"
+description: A line without a leading > ends the QuoteBlock; parser MUST NOT treat it as continuation
+
+input: |
+  > First line
+  Not continued
+
+ast:
+  - type: QuoteBlock
+    children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: First line
+  - type: Paragraph
+    children:
+      - type: Text
+        value: Not continued

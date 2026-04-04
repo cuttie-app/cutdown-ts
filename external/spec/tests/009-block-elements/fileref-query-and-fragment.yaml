@@ -1,0 +1,12 @@
+id: fileref-query-and-fragment
+section: "9.9"
+description: When both a query string and a fragment are present, src includes the query string and fragment is split off at #
+
+input: |
+  /path/to/file.ext?q=value#section-id
+
+ast:
+  - type: FileRef
+    src: /path/to/file.ext?q=value
+    fragment: section-id
+    group: null

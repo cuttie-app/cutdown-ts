@@ -1,0 +1,15 @@
+id: attrs-bare-key
+section: "5.1"
+description: A bare key token (no = sign) is stored as {key, value=""} — a semantic hint with no value
+
+input: |
+  Hello {banner}
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: Hello
+    attributes:
+      - key: banner
+        value: ""

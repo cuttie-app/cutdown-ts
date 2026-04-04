@@ -1,0 +1,18 @@
+id: cdn-0014-no-fire-valid-nesting
+section: "10.0"
+description: "Properly nested cross-type inline elements do not trigger CDN-0014"
+
+input: |
+  ** __ text __ **
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Emphasis
+        children:
+          - type: Strong
+            children:
+              - type: Text
+                value: text
+
+diagnostics: []

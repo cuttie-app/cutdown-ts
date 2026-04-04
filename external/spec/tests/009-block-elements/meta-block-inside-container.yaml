@@ -1,0 +1,29 @@
+id: meta-block-inside-container
+section: "9.5"
+description: ~~~ fence inside a block container is illegal; entire raw span emitted as a Paragraph; CDN-0030 warning emitted
+
+input: |
+  - item
+
+    ~~~yaml
+    title: foo
+    ~~~
+
+ast:
+  - type: List
+    loose: true
+    children:
+      - type: ListItem
+        children:
+          - type: Paragraph
+            children:
+              - type: Text
+                value: item
+          - type: Paragraph
+            children:
+              - type: Text
+                value: "~~~yaml\ntitle: foo\n~~~"
+
+diagnostics:
+  - code: CDN-0030
+    level: warning

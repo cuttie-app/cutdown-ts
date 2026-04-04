@@ -1,0 +1,13 @@
+id: heading-level1
+section: "9.1"
+description: Single = produces a level-1 Section with inline heading content
+
+input: |
+  = Hello
+
+ast:
+  - type: Section
+    level: 1
+    heading:
+      - type: Text
+        value: Hello

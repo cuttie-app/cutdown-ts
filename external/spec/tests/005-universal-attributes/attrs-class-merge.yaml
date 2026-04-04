@@ -1,0 +1,15 @@
+id: attrs-class-merge
+section: "5.1"
+description: Multiple .classname tokens in one {} block are collected into a single class entry with string[] value
+
+input: |
+  Hello {.foo .bar}
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: Hello
+    attributes:
+      - key: class
+        value: [foo, bar]

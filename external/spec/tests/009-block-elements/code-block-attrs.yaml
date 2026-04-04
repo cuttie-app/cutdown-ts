@@ -1,0 +1,18 @@
+id: code-block-attrs
+section: "9.4"
+description: Language identifier and attributes may both appear on the opening fence
+
+input: |
+  ```js {.example #snippet}
+  const x = 1;
+  ```
+
+ast:
+  - type: CodeBlock
+    language: js
+    content: "const x = 1;"
+    attributes:
+      - key: class
+        value: [example]
+      - key: id
+        value: snippet

@@ -1,0 +1,18 @@
+id: code-block-inside-namedblock
+section: "9.4"
+description: CodeBlock inside a NamedBlock is legal; NamedBlock base offset is stripped from content lines
+
+input: |
+  :::note
+    ```js
+    const x = 1
+    ```
+  :::
+
+ast:
+  - type: NamedBlock
+    name: note
+    children:
+      - type: CodeBlock
+        language: js
+        content: const x = 1

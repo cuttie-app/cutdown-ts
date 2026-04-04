@@ -1,0 +1,21 @@
+id: cdn-0014-quote-link-cross
+section: "10.12"
+description: '\"\" closes while an unclosed [ link bracket is inside its content; CDN-0014 at the crossing \"\" closer'
+
+input: |
+  "" q start [link "" q end][/path]
+
+ast:
+  - type: Paragraph
+    children:
+      - type: QuoteInline
+        kind: double
+        children:
+          - type: Text
+            value: "q start [link"
+      - type: Text
+        value: " q end][/path]"
+
+diagnostics:
+  - code: CDN-0014
+    level: warning

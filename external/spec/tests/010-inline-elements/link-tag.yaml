@@ -1,0 +1,16 @@
+id: link-tag
+section: "10.7"
+description: "[text][#tag/path] produces a Link with kind=tag; # sigil is consumed"
+
+input: |
+  [posts][#writing/blog]
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Link
+        kind: tag
+        target: writing/blog
+        children:
+          - type: Text
+            value: posts

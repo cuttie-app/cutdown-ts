@@ -1,0 +1,27 @@
+id: consecutive-breaks-ghost-page
+section: "7.4"
+description: Two consecutive ThematicBreaks produce an intermediate page containing only the first ThematicBreak
+
+input: |
+  First
+
+  ---
+
+  ---
+
+  Last
+
+pages:
+  - children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: First
+  - children:
+      - type: ThematicBreak
+  - children:
+      - type: ThematicBreak
+      - type: Paragraph
+        children:
+          - type: Text
+            value: Last

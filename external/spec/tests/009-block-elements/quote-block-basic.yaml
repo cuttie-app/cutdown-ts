@@ -1,0 +1,15 @@
+id: quote-block-basic
+section: "9.6"
+description: Lines prefixed with > form a QuoteBlock; prefix and optional space are stripped
+
+input: |
+  > Hello
+  > World
+
+ast:
+  - type: QuoteBlock
+    children:
+      - type: Paragraph
+        children:
+          - type: Text
+            value: HelloWorld

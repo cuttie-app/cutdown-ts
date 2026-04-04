@@ -1,0 +1,21 @@
+id: fileref-groups-dont-merge
+section: "9.9.2"
+description: FileRef lines from different known groups do not merge into the same FileRefGroup
+
+input: |
+  /a.png
+  /b.mp4
+
+ast:
+  - type: FileRefGroup
+    group: image
+    children:
+      - type: FileRef
+        src: /a.png
+        group: image
+  - type: FileRefGroup
+    group: video
+    children:
+      - type: FileRef
+        src: /b.mp4
+        group: video

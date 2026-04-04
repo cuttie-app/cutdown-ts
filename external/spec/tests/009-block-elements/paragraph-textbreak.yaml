@@ -1,0 +1,14 @@
+id: paragraph-textbreak
+section: "9.2"
+description: Backslash at end of line produces a TextBreak node; parsing continues on the next line
+
+input: "First line\\\nsecond line\n"
+
+ast:
+  - type: Paragraph
+    children:
+      - type: Text
+        value: First line
+      - type: TextBreak
+      - type: Text
+        value: second line

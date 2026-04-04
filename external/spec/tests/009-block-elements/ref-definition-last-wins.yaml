@@ -1,0 +1,15 @@
+id: ref-definition-last-wins
+section: "9.11"
+description: Duplicate RefDefinition id; last definition wins; earlier one is discarded
+
+input: |
+  [^note]: First definition
+
+  [^note]: Second definition
+
+ast:
+  - type: RefDefinition
+    id: note
+    children:
+      - type: Text
+        value: Second definition

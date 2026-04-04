@@ -1,0 +1,14 @@
+id: list-inline-hyphen-continuation
+section: "9.7.5"
+description: A continuation line at col > 0 is absorbed by the depth-0 (col 0) list item unconditionally; trailing space on first line preserves word boundary
+
+input: "- - - nested item \n      continuation line\n"
+
+ast:
+  - type: List
+    ordered: false
+    children:
+      - type: ListItem
+        children:
+          - type: Text
+            value: "- - nested item continuation line"

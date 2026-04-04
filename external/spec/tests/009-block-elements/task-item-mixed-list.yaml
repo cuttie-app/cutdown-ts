@@ -1,0 +1,28 @@
+id: task-item-mixed-list
+section: "9.7"
+description: "A List may contain a mix of TaskItem and ListItem children"
+
+input: |
+  - [ ] Buy milk
+  - [x] Write spec
+  - plain item
+
+ast:
+  - type: List
+    ordered: false
+    loose: false
+    children:
+      - type: TaskItem
+        checked: false
+        children:
+          - type: Text
+            value: Buy milk
+      - type: TaskItem
+        checked: true
+        children:
+          - type: Text
+            value: Write spec
+      - type: ListItem
+        children:
+          - type: Text
+            value: plain item
