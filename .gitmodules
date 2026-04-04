@@ -1,4 +1,4 @@
 [submodule "external/spec"]
-	path = external/spec
+	path = src/spec
 	url = https://github.com/cuttie-app/cutdown-spec.git
 	branch = refs/tags/v0.3.3
