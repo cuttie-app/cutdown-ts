@@ -1,0 +1,3 @@
+[submodule "external/spec"]
+	path = external/spec
+	url = https://github.com/cuttie-app/cutdown-spec.git
