@@ -45,7 +45,7 @@ import {
  * slots[0] is Slot 1 (last {}), slots[1] is Slot 2, etc.
  * If a slot is an array (Inline[]), find the last non-Text node.
  */
-function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnostics?: Diagnostic[]): void {
+function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void {
   for (let i = 0; i < groups.length; i++) {
     const groupIdx = groups.length - 1 - i
     const group = groups[groupIdx] || []
@@ -59,7 +59,6 @@ function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnosti
             const n = slot[j] as Record<string, unknown>
             if (typeof n === 'object' && n['type'] !== 'Text') {
               if (group.length > 0) n['attributes'] = group
-              else delete n['attributes']
               claimed = true
               break
             }
@@ -67,14 +66,13 @@ function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnosti
         } else if (typeof slot === 'object') {
           const s = slot as Record<string, unknown>
           if (group.length > 0) s['attributes'] = group
-          else delete s['attributes']
           claimed = true
         }
       }
     }
 
     if (!claimed) {
-      diagnostics?.push({ code: 'CDN-0011', level: 'warning' })
+      diagnostics.push({ code: 'CDN-0011', level: 'warning' })
     }
   }
 }
@@ -168,7 +166,7 @@ function groupFileRefs(blocks: Block[]): Block[] {
         if (lastItem && groups && groups.length > 0) {
           const slots: unknown[] = [groupNode, lastItem]
           if (lastItem.type === 'ImageBlock') slots.push(lastItem.alt)
-          distributeScopeChain(groups, slots)
+          distributeScopeChain(groups, slots, [])
         }
       } else if (children[0]) {
         result.push(children[0])
@@ -273,7 +271,7 @@ export class BlockParser {
   // ── Block collection ──────────────────────────────────────────────────────
 
   parseBlocks(): Block[] {
-    const blocks: Block[] = []
+    const blocks = []
     while (this.pos < this.lines.length) {
       if (this.isBlank()) {
         blocks.push({ type: 'Spacer' } as unknown as Block)
@@ -282,7 +280,7 @@ export class BlockParser {
       }
       blocks.push(this.parseBlock())
     }
-    return blocks
+    return blocks satisfies Block[]
   }
 
   private isBlank(offset = 0): boolean {
@@ -300,7 +298,7 @@ export class BlockParser {
 
   // ── Block dispatch ────────────────────────────────────────────────────────
 
-  parseBlock(): Block {
+  parseBlock() {
     const raw = this.peek()
     const line = raw.trimStart()
 
@@ -339,7 +337,7 @@ export class BlockParser {
 
   // ── CodeBlock ─────────────────────────────────────────────────────────────
 
-  private parseCodeBlock(): Block {
+  private parseCodeBlock() {
     const openLine = this.advance().trimStart()
     const rest = openLine.slice(3).trim()
 
@@ -383,7 +381,7 @@ export class BlockParser {
 
   // ── MetaBlock ─────────────────────────────────────────────────────────────
 
-  private parseMetaBlock(): Block {
+  private parseMetaBlock() {
     const openLine = this.advance().trimStart()
     const f = openLine.slice(3).trim().toLowerCase()
     const format = ['yaml', 'toml', 'json'].includes(f) ? f : 'yaml'
@@ -409,17 +407,18 @@ export class BlockParser {
     if (this.insideContainer) {
       this.diagnostics.push({ code: 'CDN-0030', level: 'warning' })
       const rawText = rawSpanLines.join('\n')
-      return { type: 'Paragraph', children: [{ type: 'Text', value: rawText }] }
+      return { type: 'Paragraph', children: [{ type: 'Text', value: rawText }] } as Paragraph
     }
 
     while (contentLines.length > 0 && contentLines[contentLines.length - 1]?.trim() === '') contentLines.pop()
     const raw = contentLines.join('\n') + (contentLines.length > 0 ? '\n' : '')
-    return { type: 'Meta', format, raw }
+    const node = { type: 'Meta', format, raw } as Meta
+    return node
   }
 
   // ── MathBlock ─────────────────────────────────────────────────────────────
 
-  private parseMathBlock(): Block {
+  private parseMathBlock() {
     const openLine = this.advance().trimStart()
     const rest = openLine.slice(3).trim()
     let attrs: Attribute[] | undefined
@@ -454,7 +453,7 @@ export class BlockParser {
 
   // ── ThematicBreak ─────────────────────────────────────────────────────────
 
-  private parseThematicBreak(): Block {
+  private parseThematicBreak() {
     const line = this.advance().trimStart()
     const rest = line.replace(/^-+/, '').trim()
 
@@ -482,7 +481,7 @@ export class BlockParser {
 
   // ── Heading / Section ─────────────────────────────────────────────────────
 
-  private parseHeading(eqCount: number): Block {
+  private parseHeading(eqCount: number) {
     const rawLine = this.advance()
     const line = rawLine.trimStart()
     const lines: string[] = [line.slice(eqCount + 1)]
@@ -509,7 +508,7 @@ export class BlockParser {
 
   // ── Table ─────────────────────────────────────────────────────────────────
 
-  private parseTable(): Block {
+  private parseTable() {
     const tableLines: string[] = []
     while (this.pos < this.lines.length && this.lines[this.pos]?.trimStart().startsWith('|')) {
       tableLines.push(this.lines[this.pos++] || '')
@@ -579,7 +578,7 @@ export class BlockParser {
 
   // ── QuoteBlock ────────────────────────────────────────────────────────────
 
-  private parseQuoteBlock(): Block {
+  private parseQuoteBlock() {
     const contentLines: string[] = []
     let attrs: Attribute[] | undefined
     let firstLine = true
@@ -615,7 +614,7 @@ export class BlockParser {
 
   // ── List ──────────────────────────────────────────────────────────────────
 
-  private parseList(): Block {
+  private parseList() {
     const raw = this.peek()
     const stripped = raw.trimStart()
     const col = raw.length - stripped.length
@@ -827,12 +826,12 @@ export class BlockParser {
 
   // ── ImageBlock ────────────────────────────────────────────────────────────
 
-  private parseImageBlock(): Block {
+  private parseImageBlock() {
     const line = this.advance().trimStart()
     const m = line.match(/^!\[([^\]]*)\]\(([^)]*)\)(.*)?$/)
     if (!m) {
       const { nodes } = parseInlineText(line)
-      return { type: 'Paragraph', children: nodes }
+      return { type: 'Paragraph', children: nodes } as Paragraph
     }
     const altText = m[1],
       src = m[2] || '',
@@ -857,7 +856,7 @@ export class BlockParser {
 
   // ── FileRef ───────────────────────────────────────────────────────────────
 
-  private parseFileRef(): Block {
+  private parseFileRef() {
     const line = this.advance().trimStart()
     const pathPart = line.slice(1)
 
@@ -896,22 +895,22 @@ export class BlockParser {
 
   // ── RefDefinition ─────────────────────────────────────────────────────────
 
-  private parseRefDefinition(): Block {
+  private parseRefDefinition() {
     const line = this.advance().trimStart()
     const m = line.match(/^\[\^([^\]]+)\]:\s*(.*)/)
     if (!m) {
       const { nodes } = parseInlineText(line)
-      return { type: 'Paragraph', children: nodes }
+      return { type: 'Paragraph', children: nodes } as Paragraph
     }
-    const id = m[1] || '',
-      content = m[2] || ''
+    const id = m[1] || ''
+    const content = m[2] || ''
     const { nodes: children } = parseInlineText(content)
-    return { type: 'RefDefinition', id, children }
+    return { type: 'RefDefinition', id, children } as RefDefinition
   }
 
   // ── NamedBlock ────────────────────────────────────────────────────────────
 
-  private parseNamedBlock(): Block {
+  private parseNamedBlock() {
     const openLine = this.advance().trimStart()
     const rest = openLine.slice(3)
 
@@ -977,7 +976,7 @@ export class BlockParser {
 
   // ── Paragraph ─────────────────────────────────────────────────────────────
 
-  private parseParagraph(): Block {
+  private parseParagraph() {
     const paraLines: string[] = []
     while (this.pos < this.lines.length && this.lines[this.pos]?.trim() !== '') {
       if (paraLines.length > 0 && this.peek().trim().startsWith('{')) break
