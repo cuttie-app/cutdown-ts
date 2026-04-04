@@ -1,0 +1,22 @@
+{
+  "$schema": "../node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "eslint/no-unused-vars": "error",
+    "eslint/no-control-regex": "off",
+    "jest/no-conditional-expect": "off",
+    "jest/valid-expect": "off"
+  },
+  "plugins": ["eslint", "typescript", "unicorn"],
+  "overrides": [
+    {
+      "files": ["*.test.ts", "*.spec.ts"],
+      "rules": {
+        "@typescript-eslint/no-explicit-any": "off"
+      },
+      "plugins": ["jest"]
+    }
+  ]
+}

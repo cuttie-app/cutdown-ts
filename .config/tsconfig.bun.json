@@ -1,0 +1,14 @@
+{
+  "extends": ["./tsconfig.base.json"],
+  "compilerOptions": {
+    "composite": true,
+    "module": "es2022",
+    "outDir": "../dist",
+    "rootDir": "../",
+    "emitDeclarationOnly": true,
+    "resolveJsonModule": true,
+    "types": ["vitest/globals", "bun-types", "node"]
+  },
+  "include": ["../.bin/**/*.ts"],
+  "exclude": []
+}

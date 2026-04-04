@@ -32,9 +32,9 @@ experimental/
 ## Usage
 
 ```typescript
-import { parse } from '@cuttie/cutdown-ts';
+import { parse } from '@cuttie/cutdown-ts'
 
-const { ast, diagnostics } = parse('= Hello {#intro}\n\nSome **bold** text.');
+const { ast, diagnostics } = parse('= Hello {#intro}\n\nSome **bold** text.')
 
 // ast.type === 'Document'
 // ast.children  →  Page[]
@@ -45,18 +45,18 @@ const { ast, diagnostics } = parse('= Hello {#intro}\n\nSome **bold** text.');
 
 ```typescript
 interface ParseResult {
-  ast: Document;
-  diagnostics: Diagnostic[];
+  ast: Document
+  diagnostics: Diagnostic[]
 }
 
 interface Document {
-  type: 'Document';
-  children: Page[];       // one Page per --- break or duplicate meta block
+  type: 'Document'
+  children: Page[] // one Page per --- break or duplicate meta block
 }
 
 interface Page {
-  meta: Meta | null;      // ~~~ front-matter block, if any
-  children: Block[];
+  meta: Meta | null // ~~~ front-matter block, if any
+  children: Block[]
 }
 ```
 
@@ -64,9 +64,22 @@ All exported types are re-exported from the package root — import them directl
 
 ```typescript
 import type {
-  Document, Page, Block, Section, Paragraph, CodeBlock, List, Table,
-  Inline, Text, Emphasis, Strong, Link, Attribute, Diagnostic,
-} from '@cuttie/cutdown-ts';
+  Document,
+  Page,
+  Block,
+  Section,
+  Paragraph,
+  CodeBlock,
+  List,
+  Table,
+  Inline,
+  Text,
+  Emphasis,
+  Strong,
+  Link,
+  Attribute,
+  Diagnostic,
+} from '@cuttie/cutdown-ts'
 ```
 
 ## Development
@@ -91,9 +104,9 @@ Test fixtures live in `cutdown-spec/tests/**/*.yaml`. Each file covers one spec 
 
 ```yaml
 id: emphasis-basic
-section: "10.2"
-description: "** delimiters produce Emphasis"
-input: "**bold**"
+section: '10.2'
+description: '** delimiters produce Emphasis'
+input: '**bold**'
 ast:
   - type: Paragraph
     children:
@@ -105,30 +118,30 @@ ast:
 
 Fields:
 
-| Field | Required | Description |
-|---|---|---|
-| `id` | yes | Unique fixture ID |
-| `section` | yes | Spec section number |
-| `description` | yes | Human-readable description |
-| `input` | yes | Raw Cutdown text |
-| `ast` | — | Expected first-page children (deep subset match) |
-| `pages` | — | Expected full `Document.children` array; overrides `ast` |
-| `diagnostics` | — | Expected `[{ code, level }]`; if omitted, zero diagnostics are expected |
+| Field         | Required | Description                                                             |
+| ------------- | -------- | ----------------------------------------------------------------------- |
+| `id`          | yes      | Unique fixture ID                                                       |
+| `section`     | yes      | Spec section number                                                     |
+| `description` | yes      | Human-readable description                                              |
+| `input`       | yes      | Raw Cutdown text                                                        |
+| `ast`         | —        | Expected first-page children (deep subset match)                        |
+| `pages`       | —        | Expected full `Document.children` array; overrides `ast`                |
+| `diagnostics` | —        | Expected `[{ code, level }]`; if omitted, zero diagnostics are expected |
 
 The test runner does a **deep subset match**: all keys present in the expected object must match, extra keys in the actual output are ignored. Arrays must have the same length.
 
 ## Diagnostic codes
 
-| Code | Trigger |
-|---|---|
-| CDN-0001 | Unclosed ` ``` ` code fence |
-| CDN-0002 | Unclosed `~~~` meta fence |
-| CDN-0003 | Unclosed `$$$` math fence |
-| CDN-0004 | Unclosed `:::name` named block |
-| CDN-0010 | Text before `{attrs}` on a thematic break line |
+| Code     | Trigger                                                         |
+| -------- | --------------------------------------------------------------- |
+| CDN-0001 | Unclosed ` ``` ` code fence                                     |
+| CDN-0002 | Unclosed `~~~` meta fence                                       |
+| CDN-0003 | Unclosed `$$$` math fence                                       |
+| CDN-0004 | Unclosed `:::name` named block                                  |
+| CDN-0010 | Text before `{attrs}` on a thematic break line                  |
 | CDN-0011 | More than two trailing `{…}` groups on a list item or table row |
-| CDN-0012 | Heading level > 9 (`==========`) |
-| CDN-0013 | `:::` without a valid ID name |
-| CDN-0020 | Duplicate `#id` in an attribute block |
-| CDN-0021 | `class=` key mixed with `.class` shorthand (`.class` wins) |
-| CDN-0022 | Duplicate attribute key |
+| CDN-0012 | Heading level > 9 (`==========`)                                |
+| CDN-0013 | `:::` without a valid ID name                                   |
+| CDN-0020 | Duplicate `#id` in an attribute block                           |
+| CDN-0021 | `class=` key mixed with `.class` shorthand (`.class` wins)      |
+| CDN-0022 | Duplicate attribute key                                         |
