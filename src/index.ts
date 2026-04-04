@@ -5,6 +5,7 @@ export type DiagnosticLevel = 'warning' | 'error';
 export interface Diagnostic {
   code: string;
   level: DiagnosticLevel;
+  message?: string;
 }
 
 // ─── Public parse result ─────────────────────────────────────────────────────
@@ -150,8 +151,8 @@ export type FileGroup = 'image' | 'video' | 'audio';
 export interface FileRef {
   type: 'FileRef';
   src: string;
-  fragment?: string;
-  group?: FileGroup;
+  fragment: string | null;
+  group: FileGroup | null;
   attributes?: Attribute[];
 }
 
@@ -791,12 +792,32 @@ class InlineScanner {
       return true;
     }
 
-    // Parse inner content recursively; QuoteInline trims surrounding whitespace
+    // Parse inner content recursively; trim surrounding whitespace per §12.2
     const rawInner = this.chars.slice(innerStart, closedAt).join('');
-    const innerText = (nodeType === 'QuoteDouble' || nodeType === 'QuoteSingle') ? rawInner.trim() : rawInner;
-    const innerResult = parseInlineText(innerText);
+    const innerResult = parseInlineText(rawInner.trim());
     this.diagnostics.push(...innerResult.diagnostics);
     const children = innerResult.nodes;
+
+    // CDN-0014: warn when a different-type inline opener is stranded inside this element
+    // and its closer appears after our closing delimiter (crossed boundary).
+    const otherDelims = ['**', '__', '~~', '""', "''"].filter(d => d !== delim);
+    for (const cd of otherDelims) {
+      let count = 0;
+      let ci = 0;
+      while (ci <= rawInner.length - cd.length) {
+        if (rawInner.slice(ci, ci + cd.length) === cd) { count++; ci += cd.length; }
+        else ci++;
+      }
+      if (count % 2 !== 0 && this.chars.slice(this.pos).join('').includes(cd)) {
+        this.diagnostics.push({ code: 'CDN-0014', level: 'warning', message: `Crossed inline boundaries: "${delim}" closes while "${cd}" is still open` });
+      }
+    }
+    // Check for unmatched [ bracket crossing into a link construct
+    const openBrackets = (rawInner.match(/\[/g) ?? []).length;
+    const closeBrackets = (rawInner.match(/]/g) ?? []).length;
+    if (openBrackets > closeBrackets && this.chars.slice(this.pos).join('').includes(']')) {
+      this.diagnostics.push({ code: 'CDN-0014', level: 'warning', message: `Crossed inline boundaries: "${delim}" closes while "[" is still open` });
+    }
 
     // Optional trailing attrs after closing delimiter
     let attrs: Attribute[] | undefined;
@@ -910,13 +931,6 @@ class InlineScanner {
       }
       this.pos++; // ]
 
-      // Both empty → literal
-      if (textChars === '' && target === '') {
-        this.pos = start + 1;
-        this.pushText('[');
-        return true;
-      }
-
       let kind: LinkKind = 'page';
       let resolvedTarget = target;
       if (target.startsWith('#')) { kind = 'tag'; resolvedTarget = target.slice(1); }
@@ -957,14 +971,15 @@ class InlineScanner {
       }
       key += this.chars[this.pos++];
     }
-    if (!closed || key.trim() === '') {
-      // Emit all consumed chars as literal text (e.g. {{}} → "{{}}")
+    const trimmedKey = key.trim();
+    if (!closed || trimmedKey === '' || !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
+      // Emit all consumed chars as literal text (e.g. {{}} or invalid key → literal)
       const raw = this.chars.slice(start, this.pos).join('');
       if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = [];
       this.nodes.push({ type: 'Text', value: raw });
       return true;
     }
-    this.pushNode({ type: 'Variable', key: key.trim() });
+    this.pushNode({ type: 'Variable', key: trimmedKey });
     return true;
   }
 
@@ -1711,7 +1726,7 @@ export class BlockParser {
       const stripped = line.trimStart();
       const lineCol = line.length - stripped.length;
 
-      if (isListMarkerLine(stripped)) {
+      if (i > 0 && isListMarkerLine(stripped)) {
         flushText();
         // Collect the sub-list lines, normalising to col-0 within the sub-list
         const subLines: string[] = [stripped];
@@ -1733,7 +1748,7 @@ export class BlockParser {
         result.push(...nestedBlocks);
         trailingAttrGroups = [];
       } else {
-        pendingTextLines.push(line);
+        pendingTextLines.push(i > 0 ? line.trimStart() : line);
       }
       i++;
     }
@@ -1802,10 +1817,8 @@ export class BlockParser {
     }
     src = "/" + src;
 
-    const group = detectFileGroup(src);
-    const node: FileRef = { type: "FileRef", src };
-    if (fragment) node.fragment = fragment;
-    if (group) node.group = group;
+    const group = detectFileGroup(src) ?? null;
+    const node: FileRef = { type: "FileRef", src, fragment: fragment ?? null, group };
 
     if (finalGroups.length > 0) (node as any).attrGroups = finalGroups;
     distributeScopeChain(finalGroups, [node], this.diagnostics);
@@ -2093,7 +2106,7 @@ function groupFileRefs(blocks: Block[]): Block[] {
 }
 
 function blockFileGroup(block: Block): FileGroup | undefined {
-  if (block.type === "FileRef") return (block as FileRef).group;
+  if (block.type === "FileRef") return (block as FileRef).group ?? undefined;
   if (block.type === "ImageBlock") return "image";
   return undefined;
 }
