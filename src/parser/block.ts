@@ -45,7 +45,7 @@ import {
  * slots[0] is Slot 1 (last {}), slots[1] is Slot 2, etc.
  * If a slot is an array (Inline[]), find the last non-Text node.
  */
-function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void {
+const distributeScopeChain = (groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void => {
   for (let i = 0; i < groups.length; i++) {
     const groupIdx = groups.length - 1 - i
     const group = groups[groupIdx] || []
@@ -79,7 +79,9 @@ function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnosti
 
 // ─── Post-processing ──────────────────────────────────────────────────────────
 
-function isBlockType(type: string): boolean {
+const isRefDefinition = (b: Block): b is RefDefinition => b.type === 'RefDefinition'
+
+const isBlockType = (type: string): boolean => {
   return [
     'Section',
     'Paragraph',
@@ -99,7 +101,7 @@ function isBlockType(type: string): boolean {
   ].includes(type)
 }
 
-function nestSections(blocks: Block[]): Block[] {
+const nestSections = (blocks: Block[]): Block[] => {
   const result: Block[] = []
   const stack: Array<{ level: number; section: Section }> = []
 
@@ -122,21 +124,21 @@ function nestSections(blocks: Block[]): Block[] {
   return result
 }
 
-function deduplicateRefDefs(blocks: Block[]): Block[] {
+const deduplicateRefDefs = (blocks: Block[]) => {
   const last = new Map<string, number>()
   blocks.forEach((b, i) => {
-    if (b.type === 'RefDefinition') last.set((b as RefDefinition).id, i)
+    if (isRefDefinition(b)) last.set(b.id, i)
   })
-  return blocks.filter((b, i) => b.type !== 'RefDefinition' || last.get((b as RefDefinition).id) === i)
+  return blocks.filter((b, i) => !isRefDefinition(b) || last.get(b.id) === i)
 }
 
-function blockFileGroup(block: Block): FileGroup | undefined {
+const blockFileGroup = (block: Block): FileGroup | undefined => {
   if (block.type === 'FileRef') return (block as FileRef).group ?? undefined
   if (block.type === 'ImageBlock') return 'image'
   return undefined
 }
 
-function groupFileRefs(blocks: Block[]): Block[] {
+const groupFileRefs = (blocks: Block[]) => {
   const result: Block[] = []
   let i = 0
   while (i < blocks.length) {
@@ -179,7 +181,7 @@ function groupFileRefs(blocks: Block[]): Block[] {
   return result
 }
 
-function processListItemChildren(children: (Block | Inline)[]): (Block | Inline)[] {
+const processListItemChildren = (children: (Block | Inline)[]): (Block | Inline)[] => {
   const blocks = children.filter(
     (c) => typeof c === 'object' && 'type' in c && isBlockType((c as Block).type)
   ) as Block[]
@@ -192,7 +194,7 @@ function processListItemChildren(children: (Block | Inline)[]): (Block | Inline)
   return children
 }
 
-function processBlocks(blocks: Block[]): Block[] {
+const processBlocks = (blocks: Block[]): Block[] => {
   let result = nestSections(blocks)
   result = deduplicateRefDefs(result)
   result = groupFileRefs(result)
@@ -215,7 +217,7 @@ function processBlocks(blocks: Block[]): Block[] {
 
 // ─── Table row helper ─────────────────────────────────────────────────────────
 
-function parseTableRowLine(line: string): { cells: string[]; attrGroups: Attribute[][] } {
+const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][] } => {
   const trimmed = line.trim()
   const { text: cellsPart, groups } = extractTrailingAttrGroups(trimmed)
   const cells = splitCells(cellsPart.trimEnd())
@@ -270,8 +272,8 @@ export class BlockParser {
 
   // ── Block collection ──────────────────────────────────────────────────────
 
-  parseBlocks(): Block[] {
-    const blocks = []
+  parseBlocks() {
+    const blocks: (Block | RefDefinition)[] = []
     while (this.pos < this.lines.length) {
       if (this.isBlank()) {
         blocks.push({ type: 'Spacer' } as unknown as Block)
@@ -280,7 +282,7 @@ export class BlockParser {
       }
       blocks.push(this.parseBlock())
     }
-    return blocks satisfies Block[]
+    return blocks
   }
 
   private isBlank(offset = 0): boolean {
@@ -317,7 +319,7 @@ export class BlockParser {
       if (rest.length > 0 && isIdStart(rest[0] || '')) return this.parseNamedBlock()
       this.advance()
       this.diagnostics.push({ code: 'CDN-0013', level: 'warning' })
-      return { type: 'Paragraph', children: [{ type: 'Text', value: line }] }
+      return { type: 'Paragraph', children: [{ type: 'Text', value: line }] } as Paragraph
     }
 
     if (line.startsWith('=')) {
@@ -492,7 +494,7 @@ export class BlockParser {
 
     if (eqCount > 9) {
       this.diagnostics.push({ code: 'CDN-0012', level: 'warning' })
-      return { type: 'Paragraph', children: [{ type: 'Text', value: line }] }
+      return { type: 'Paragraph', children: [{ type: 'Text', value: line }] } as Paragraph
     }
 
     const level = eqCount
