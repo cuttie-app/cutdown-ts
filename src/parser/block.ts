@@ -1,11 +1,10 @@
-import type { Attribute, Diagnostic } from '../types/document/common.ts'
 import type {
+  Attribute, Diagnostic,
   Block, Document, Page, Section, Paragraph, ThematicBreak, CodeBlock,
   Meta, QuoteBlock, List, ListItem, TaskItem, ListItemLike,
-  Table, Row, Cell, Column, FileRef, FileRefGroup, ImageBlock,
-  NamedBlock, RefDefinition, MathBlock, FileGroup,
-} from '../types/document/blocks.ts'
-import type { Inline } from '../types/document/inline.ts'
+  Table, Row, Column, FileRef, FileRefGroup, ImageBlock,
+  NamedBlock, RefDefinition, MathBlock, FileGroup, Inline,
+} from '../types/document'
 import { parseAttrBlock, extractTrailingAttrGroups } from './attrs.ts'
 import { parseInlineText, parseInlineLines } from './inline.ts'
 import {
@@ -190,9 +189,9 @@ function parseTableRowLine(line: string): { cells: string[]; attrGroups: Attribu
 // ─── BlockParser ──────────────────────────────────────────────────────────────
 
 export class BlockParser {
-  private lines: string[]
+  readonly lines: string[]
   private pos: number = 0
-  private insideContainer: boolean
+  readonly insideContainer: boolean
   public diagnostics: Diagnostic[] = []
 
   constructor(lines: string[], insideContainer = false) {
@@ -527,8 +526,10 @@ export class BlockParser {
       this.diagnostics.push(...diagnostics)
       groups = [...groups, ...trailingAttrGroups]
     }
+
     const slots: unknown[] = [table]
     if (rows.length > 0) slots.push(rows[rows.length - 1])
+
     distributeScopeChain(groups, slots, this.diagnostics)
 
     return table
@@ -715,9 +716,9 @@ export class BlockParser {
 
     let item: ListItemLike
     if (checked !== undefined) {
-      item = { type: 'TaskItem', checked, children }
+      item = { type: 'TaskItem', checked, children } as TaskItem
     } else {
-      item = { type: 'ListItem', children }
+      item = { type: 'ListItem', children } as ListItem
     }
 
     return { item, start, attrGroups: groups, absorbedBlank }

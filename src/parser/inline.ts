@@ -1,9 +1,9 @@
-import type { Attribute, Diagnostic } from '../types/document/common.ts'
 import type {
+  Attribute, Diagnostic,
   Inline, InlineParseResult,
   Text, Emphasis, Strong, Strikethrough, CodeInline,
   Link, ImageInline, Span, MathInline, Variable, QuoteInline, LinkKind,
-} from '../types/document/inline.ts'
+} from '../types/document'
 import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
 
@@ -45,7 +45,7 @@ export function mergeText(nodes: Inline[]): Inline[] {
 // ─── InlineScanner ────────────────────────────────────────────────────────────
 
 class InlineScanner {
-  private chars: string[]
+  readonly chars: string[]
   private pos: number = 0
   private nodes: Inline[] = []
   private trailingAttrGroups: Attribute[][] = []
@@ -219,7 +219,8 @@ class InlineScanner {
       this.pushText(delim[0] || '')
       return true
     }
-    this.pushNode({ type: 'MathInline', formula: content })
+    const node: MathInline = { type: 'MathInline', formula: content }
+    this.pushNode(node)
     return true
   }
 
@@ -445,7 +446,8 @@ class InlineScanner {
       this.nodes.push({ type: 'Text', value: raw })
       return true
     }
-    this.pushNode({ type: 'Variable', key: trimmedKey })
+    const node: Variable = { type: 'Variable', key: trimmedKey }
+    this.pushNode(node)
     return true
   }
 
