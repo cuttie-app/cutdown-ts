@@ -1,5 +1,5 @@
 id: list-ordered
-section: "9.7.2"
+section: '9.7.2'
 description: Lines starting with "{n}. " form a tight ordered List; start captures first item number
 
 input: |

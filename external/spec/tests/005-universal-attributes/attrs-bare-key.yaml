@@ -1,5 +1,5 @@
 id: attrs-bare-key
-section: "5.1"
+section: '5.1'
 description: A bare key token (no = sign) is stored as {key, value=""} — a semantic hint with no value
 
 input: |
@@ -12,4 +12,4 @@ ast:
         value: Hello
     attributes:
       - key: banner
-        value: ""
+        value: ''

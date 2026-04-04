@@ -1,5 +1,5 @@
 id: heading-attrs
-section: "9.1"
+section: '9.1'
 description: Last {attrs} token on the heading line is claimed by the Section node
 
 input: |

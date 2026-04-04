@@ -1,6 +1,6 @@
 id: cdn-0010-thematicbreak-text-dropped
-section: "9.3"
-description: "Non-whitespace text between --- and optional {attrs} is silently dropped; ThematicBreak emitted normally; CDN-0010 warning"
+section: '9.3'
+description: 'Non-whitespace text between --- and optional {attrs} is silently dropped; ThematicBreak emitted normally; CDN-0010 warning'
 
 input: |
   Before

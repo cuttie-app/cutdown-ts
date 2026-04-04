@@ -1,6 +1,6 @@
 id: task-item-checked
-section: "9.7.4"
-description: "Both - [x] and - [X] produce TaskItem with checked: true"
+section: '9.7.4'
+description: 'Both - [x] and - [X] produce TaskItem with checked: true'
 
 input: |
   - [x] Write spec

@@ -1,5 +1,5 @@
 id: list-loose
-section: "9.7.3"
+section: '9.7.3'
 description: Blank line between col-0 items resets the list; produces two separate tight List nodes (loose lists require indented items)
 
 input: |

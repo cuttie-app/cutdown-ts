@@ -1,6 +1,6 @@
 id: emphasis-triple
-section: "10.2"
-description: "*** = ** (opener) + * (literal inside); closing *** = ** (closer) + * (literal after)"
+section: '10.2'
+description: '*** = ** (opener) + * (literal inside); closing *** = ** (closer) + * (literal after)'
 
 input: |
   ***text***
@@ -11,6 +11,6 @@ ast:
       - type: Emphasis
         children:
           - type: Text
-            value: "*text"
+            value: '*text'
       - type: Text
-        value: "*"
+        value: '*'

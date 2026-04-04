@@ -10,5 +10,6 @@
   "bracketSpacing": true,
   "objectWrap": "preserve",
   "quoteProps": "preserve",
+  "excludeFiles": ["external/**", "**/external/**", "**/dist/**", "**/node_modules/**"],
   "arrowParens": "always"
 }

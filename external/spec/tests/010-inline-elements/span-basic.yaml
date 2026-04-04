@@ -1,6 +1,6 @@
 id: span-basic
-section: "10.10"
-description: "::name produces an empty Span with the given name"
+section: '10.10'
+description: '::name produces an empty Span with the given name'
 
 input: |
   Hello ::marker world
@@ -9,8 +9,8 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "Hello "
+        value: 'Hello '
       - type: Span
         name: marker
       - type: Text
-        value: " world"
+        value: ' world'

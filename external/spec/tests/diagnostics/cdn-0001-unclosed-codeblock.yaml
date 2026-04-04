@@ -1,6 +1,6 @@
 id: cdn-0001-unclosed-codeblock
-section: "9.4"
-description: "Unclosed ``` fence; content runs to end of document; CDN-0001 warning emitted"
+section: '9.4'
+description: 'Unclosed ``` fence; content runs to end of document; CDN-0001 warning emitted'
 
 input: "```python\nx = 1\n"
 

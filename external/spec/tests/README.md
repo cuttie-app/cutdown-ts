@@ -25,10 +25,10 @@ Each `.yaml` file is a single fixture:
 
 ```yaml
 id: emphasis-basic
-section: "10.2"
-description: "** delimiters produce Emphasis; single * is literal text"
+section: '10.2'
+description: '** delimiters produce Emphasis; single * is literal text'
 
-input: "**bold**"
+input: '**bold**'
 
 ast:
   - type: Paragraph
@@ -41,15 +41,15 @@ ast:
 
 ### Fields
 
-| Field | Required | Description |
-|---|---|---|
-| `id` | yes | Unique fixture ID (kebab-case, matches filename without `.yaml`) |
-| `section` | yes | Spec section number as a string (e.g. `"9.4"`) |
-| `description` | yes | One-line human-readable description |
-| `input` | yes | Raw Cutdown source text |
-| `ast` | — | Expected children of the first page (see [Assertions](#assertions)) |
-| `pages` | — | Expected full `Document.children` array; use when the fixture spans multiple pages. Overrides `ast` when present |
-| `diagnostics` | — | Expected diagnostics (see [Assertions](#assertions)); if omitted, the parser must emit zero diagnostics |
+| Field         | Required | Description                                                                                                      |
+| ------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
+| `id`          | yes      | Unique fixture ID (kebab-case, matches filename without `.yaml`)                                                 |
+| `section`     | yes      | Spec section number as a string (e.g. `"9.4"`)                                                                   |
+| `description` | yes      | One-line human-readable description                                                                              |
+| `input`       | yes      | Raw Cutdown source text                                                                                          |
+| `ast`         | —        | Expected children of the first page (see [Assertions](#assertions))                                              |
+| `pages`       | —        | Expected full `Document.children` array; use when the fixture spans multiple pages. Overrides `ast` when present |
+| `diagnostics` | —        | Expected diagnostics (see [Assertions](#assertions)); if omitted, the parser must emit zero diagnostics          |
 
 Exactly ONE OF `ast` or `pages` MUST be present.
 
@@ -116,10 +116,10 @@ ast:
 
 Fixtures in `diagnostics/` test warning behaviour. The fixture asserts both the AST produced (recovery output) and the diagnostic code emitted:
 
-```yaml
+````yaml
 id: cdn-0001-unclosed-codeblock
-section: "9.4"
-description: "Unclosed ``` fence; content runs to end of document; CDN-0001 warning emitted"
+section: '9.4'
+description: 'Unclosed ``` fence; content runs to end of document; CDN-0001 warning emitted'
 
 input: "```python\nx = 1\n"
 
@@ -131,7 +131,7 @@ ast:
 diagnostics:
   - code: CDN-0001
     level: warning
-```
+````
 
 ## ID and filename conventions
 

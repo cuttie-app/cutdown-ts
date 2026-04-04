@@ -1,5 +1,5 @@
 id: emphasis-cross-nesting
-section: "10.2"
+section: '10.2'
 description: Cross-type nesting is allowed; Strong inside Emphasis and vice versa
 
 input: |

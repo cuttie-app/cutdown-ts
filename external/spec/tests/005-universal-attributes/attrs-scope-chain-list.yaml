@@ -1,6 +1,6 @@
 id: attrs-scope-chain-list
-section: "5.2"
-description: "Two trailing {} on a list item distribute right-to-left: last to List, preceding to ListItem"
+section: '5.2'
+description: 'Two trailing {} on a list item distribute right-to-left: last to List, preceding to ListItem'
 
 input: |
   - item {.item-class}{.list-class}

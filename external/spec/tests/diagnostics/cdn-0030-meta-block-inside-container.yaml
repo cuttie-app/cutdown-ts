@@ -1,6 +1,6 @@
 id: cdn-0030-meta-block-inside-container
-section: "9.5"
-description: "~~~ fence inside a block container is illegal; raw span emitted as Paragraph; CDN-0030 warning emitted on the opening fence line"
+section: '9.5'
+description: '~~~ fence inside a block container is illegal; raw span emitted as Paragraph; CDN-0030 warning emitted on the opening fence line'
 
 input: |
   :::note

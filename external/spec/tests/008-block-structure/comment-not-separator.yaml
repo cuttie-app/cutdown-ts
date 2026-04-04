@@ -1,5 +1,5 @@
 id: comment-not-separator
-section: "8.3"
+section: '8.3'
 description: Comment line between paragraph lines is invisible; does not break the paragraph
 
 input: |

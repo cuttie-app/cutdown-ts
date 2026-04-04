@@ -2,7 +2,7 @@
 
 You write structure. You write content.
 
-*Cutdown* derives from Markdown. The name is literal: *cut* from the wide variety *of Markdown* syntax features down to what content actually needs. It produces a structured document tree — headings, paragraphs, lists, blocks — that an application interprets and renders. There is no canonical visual output. No rendering opinions baked in. Some things work the same as Markdown. Some were changed deliberately. Each change has a reason.
+_Cutdown_ derives from Markdown. The name is literal: _cut_ from the wide variety _of Markdown_ syntax features down to what content actually needs. It produces a structured document tree — headings, paragraphs, lists, blocks — that an application interprets and renders. There is no canonical visual output. No rendering opinions baked in. Some things work the same as Markdown. Some were changed deliberately. Each change has a reason.
 
 ---
 
@@ -115,13 +115,13 @@ Some paragraph with ~~struck~~ text and a [link](https://example.com).
 
 ## Repository layout
 
-| Path | Contents |
-|---|---|
-| [`spec/`](spec/) | Language specification §1–§16 |
-| [`tests/`](tests/) | Conformance corpus — golden YAML tests |
-| [`extensions/`](extensions/) | Extension specs (task-item, mention) |
-| [`policies/`](policies/) | Governance and conformance policies |
-| [`SYNTAX.md`](SYNTAX.md) | Condensed syntax reference for tooling and AI agents |
+| Path                         | Contents                                             |
+| ---------------------------- | ---------------------------------------------------- |
+| [`spec/`](spec/)             | Language specification §1–§16                        |
+| [`tests/`](tests/)           | Conformance corpus — golden YAML tests               |
+| [`extensions/`](extensions/) | Extension specs (task-item, mention)                 |
+| [`policies/`](policies/)     | Governance and conformance policies                  |
+| [`SYNTAX.md`](SYNTAX.md)     | Condensed syntax reference for tooling and AI agents |
 
 ---
 
@@ -157,11 +157,11 @@ There is no official MIME type. `text/x-cutdown` may be used informally.
 
 ## For implementors
 
-| Resource | Description |
-|---|---|
-| [`spec/`](spec/) | Language specification §1–§16 |
-| [`tests/`](tests/) | Conformance tests (golden YAML, all CDN codes) |
-| [`SYNTAX.md`](SYNTAX.md) | Condensed syntax reference |
+| Resource                 | Description                                    |
+| ------------------------ | ---------------------------------------------- |
+| [`spec/`](spec/)         | Language specification §1–§16                  |
+| [`tests/`](tests/)       | Conformance tests (golden YAML, all CDN codes) |
+| [`SYNTAX.md`](SYNTAX.md) | Condensed syntax reference                     |
 
 ---
 
@@ -173,7 +173,7 @@ There is no official MIME type. `text/x-cutdown` may be used informally.
 
 ## Acknowledgements
 
-*Inspired by [CommonMark](https://commonmark.org) and [Djot](https://djot.net).*
+_Inspired by [CommonMark](https://commonmark.org) and [Djot](https://djot.net)._
 
 ---
 

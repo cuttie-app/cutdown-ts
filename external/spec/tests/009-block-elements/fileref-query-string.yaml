@@ -1,5 +1,5 @@
 id: fileref-query-string
-section: "9.9"
+section: '9.9'
 description: A query string in a FileRef path is included in src verbatim; no separate query field is produced
 
 input: |

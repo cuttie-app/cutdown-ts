@@ -1,6 +1,6 @@
 id: image-inline
-section: "10.9"
-description: "![alt](src) in inline context produces ImageInline with alt as Inline[]"
+section: '10.9'
+description: '![alt](src) in inline context produces ImageInline with alt as Inline[]'
 
 input: |
   See ![a cat](cat.jpg) here.
@@ -9,11 +9,11 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "See "
+        value: 'See '
       - type: ImageInline
         alt:
           - type: Text
             value: a cat
         src: cat.jpg
       - type: Text
-        value: " here."
+        value: ' here.'

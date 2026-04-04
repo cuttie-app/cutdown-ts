@@ -1,5 +1,5 @@
 id: meta-block-opens-new-page
-section: "7.4"
+section: '7.4'
 description: A second Meta block opens a new Page when Page.meta is already set
 
 input: |

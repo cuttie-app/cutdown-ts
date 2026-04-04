@@ -1,6 +1,6 @@
 id: strong-basic
-section: "10.3"
-description: "__ delimiters produce Strong; single _ is literal text"
+section: '10.3'
+description: '__ delimiters produce Strong; single _ is literal text'
 
 input: |
   __strong__

@@ -1,5 +1,5 @@
 id: heading-level2
-section: "9.1"
+section: '9.1'
 description: == produces a level-2 Section
 
 input: |

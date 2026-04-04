@@ -1,6 +1,6 @@
 id: cdn-0012-heading-level-out-of-range
-section: "9.1"
-description: "10 or more = signs would exceed heading level 9; entire line emitted as literal Text; CDN-0012 warning"
+section: '9.1'
+description: '10 or more = signs would exceed heading level 9; entire line emitted as literal Text; CDN-0012 warning'
 
 input: |
   ========== Too deep
@@ -9,7 +9,7 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "========== Too deep"
+        value: '========== Too deep'
 
 diagnostics:
   - code: CDN-0012

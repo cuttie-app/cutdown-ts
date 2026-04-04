@@ -16,7 +16,7 @@
       "rules": {
         "@typescript-eslint/no-explicit-any": "off"
       },
-      "plugins": ["jest"]
+      "plugins": []
     }
   ]
 }

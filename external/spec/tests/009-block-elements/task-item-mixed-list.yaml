@@ -1,6 +1,6 @@
 id: task-item-mixed-list
-section: "9.7"
-description: "A List may contain a mix of TaskItem and ListItem children"
+section: '9.7'
+description: 'A List may contain a mix of TaskItem and ListItem children'
 
 input: |
   - [ ] Buy milk

@@ -1,5 +1,5 @@
 id: text-break
-section: "10.6"
+section: '10.6'
 description: Backslash as last character of a line produces a TextBreak node
 
 input: "line one\\\nline two\n"

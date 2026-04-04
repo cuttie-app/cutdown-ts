@@ -1,6 +1,6 @@
 id: task-item-unchecked
-section: "9.7.4"
-description: "- [ ] produces TaskItem with checked: false"
+section: '9.7.4'
+description: '- [ ] produces TaskItem with checked: false'
 
 input: |
   - [ ] Buy milk

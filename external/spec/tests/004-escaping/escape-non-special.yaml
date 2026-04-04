@@ -1,5 +1,5 @@
 id: escape-non-special
-section: "4"
+section: '4'
 description: Backslash before non-special character emits both characters literally
 
 input: |

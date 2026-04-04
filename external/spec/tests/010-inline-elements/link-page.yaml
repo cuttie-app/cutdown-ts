@@ -1,6 +1,6 @@
 id: link-page
-section: "10.7"
-description: "[text][path] without leading sigil produces a Link with kind=page and target"
+section: '10.7'
+description: '[text][path] without leading sigil produces a Link with kind=page and target'
 
 input: |
   [About][about/intro]

@@ -1,5 +1,5 @@
 id: named-block-nested
-section: "9.10"
+section: '9.10'
 description: NamedBlocks can be nested; inner block is a child of the outer block
 
 input: |

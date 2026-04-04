@@ -1,6 +1,6 @@
 id: cdn-0020-duplicate-id
-section: "5.1"
-description: "Second #id token in same {} block is dropped; first value kept; CDN-0020 warning"
+section: '5.1'
+description: 'Second #id token in same {} block is dropped; first value kept; CDN-0020 warning'
 
 input: |
   Hello {#first #second}

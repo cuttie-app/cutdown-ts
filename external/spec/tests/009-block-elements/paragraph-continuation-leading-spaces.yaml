@@ -1,5 +1,5 @@
 id: paragraph-continuation-leading-spaces
-section: "9.2"
+section: '9.2'
 description: Leading spaces on paragraph continuation lines are stripped before inline parsing; they do not appear in output
 
 input: |

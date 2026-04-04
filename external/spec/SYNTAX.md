@@ -174,24 +174,24 @@ Must start at line start. Last definition wins (supports transclusion override).
 
 Parsed left-to-right, no backtracking. Unclosed opener → emitted as literal text.
 
-| Syntax | Node | Notes |
-|--------|------|-------|
-| `**text**` | `Emphasis` | Single `*` = literal |
-| `__text__` | `Strong` | Single `_` = literal |
-| `~~text~~` | `Strikethrough` | Single `~` = literal |
-| ` ``code`` ` | `CodeInline` | Single `` ` `` = literal. Content literal. |
-| `$$formula$$` | `MathInline` | Single `$` = literal. Content literal. |
-| `""text""` | `QuoteInline(double)` | Single `"` = literal |
-| `''text''` | `QuoteInline(single)` | Single `'` = literal |
-| `[text](url)` | `Link(external)` | |
-| `[text][page]` | `Link(page)` | target has no prefix |
-| `[text][#tag]` | `Link(tag)` | resolved by consumer |
-| `[text][^ref]` | `Link(ref)` | resolved by consumer |
-| `[text][@cite]` | `Link(cite)` | resolved by consumer |
-| `![alt](src)` | `ImageInline` | |
-| `::name {attrs}` | `Span` | Empty. `::` without name = literal. |
-| `{{key}}` | `Variable` | `{{}}` invalid = literal |
-| `\` at line end | `TextBreak` | |
+| Syntax           | Node                  | Notes                                      |
+| ---------------- | --------------------- | ------------------------------------------ |
+| `**text**`       | `Emphasis`            | Single `*` = literal                       |
+| `__text__`       | `Strong`              | Single `_` = literal                       |
+| `~~text~~`       | `Strikethrough`       | Single `~` = literal                       |
+| ` ``code`` `     | `CodeInline`          | Single `` ` `` = literal. Content literal. |
+| `$$formula$$`    | `MathInline`          | Single `$` = literal. Content literal.     |
+| `""text""`       | `QuoteInline(double)` | Single `"` = literal                       |
+| `''text''`       | `QuoteInline(single)` | Single `'` = literal                       |
+| `[text](url)`    | `Link(external)`      |                                            |
+| `[text][page]`   | `Link(page)`          | target has no prefix                       |
+| `[text][#tag]`   | `Link(tag)`           | resolved by consumer                       |
+| `[text][^ref]`   | `Link(ref)`           | resolved by consumer                       |
+| `[text][@cite]`  | `Link(cite)`          | resolved by consumer                       |
+| `![alt](src)`    | `ImageInline`         |                                            |
+| `::name {attrs}` | `Span`                | Empty. `::` without name = literal.        |
+| `{{key}}`        | `Variable`            | `{{}}` invalid = literal                   |
+| `\` at line end  | `TextBreak`           |                                            |
 
 Cross-type nesting allowed (e.g. `**__text__**`). Same-type nesting not allowed (greedy close).
 
@@ -242,7 +242,7 @@ Document
 1. Code fence \`\`\`, Meta fence `~~~`, Math fence `$$$` — content always literal
 2. Inline code \`\` — content literal
 3. Escape `\x`
-4. Links `[...](...)`  and images `![...]()`
+4. Links `[...](...)` and images `![...]()`
 5. Inline math `$$`
 6. Emphasis `**`, Strong `__`, Strikethrough `~~`, QuoteInline `""` `''`
 7. `::span`

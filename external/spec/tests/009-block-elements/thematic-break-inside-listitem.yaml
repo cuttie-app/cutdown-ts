@@ -1,5 +1,5 @@
 id: thematic-break-inside-listitem
-section: "9.3"
+section: '9.3'
 description: ThematicBreak inside a list item emits a ThematicBreak node without creating a new Page
 
 input: |

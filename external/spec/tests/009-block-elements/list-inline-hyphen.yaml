@@ -1,5 +1,5 @@
 id: list-inline-hyphen
-section: "9.7.1"
+section: '9.7.1'
 description: After the list marker `- `, the hyphen has no special meaning in inline content; `- - item` is a single list item with literal text
 
 input: |
@@ -12,4 +12,4 @@ ast:
       - type: ListItem
         children:
           - type: Text
-            value: "- - nested item"
+            value: '- - nested item'

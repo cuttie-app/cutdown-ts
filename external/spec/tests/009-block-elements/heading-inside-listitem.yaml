@@ -1,5 +1,5 @@
 id: heading-inside-listitem
-section: "9.1"
+section: '9.1'
 description: A heading inside a list item is legal; produces a Section as a block child of the ListItem
 
 input: |

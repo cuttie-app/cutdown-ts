@@ -1,5 +1,5 @@
 id: table-simple
-section: "9.8.1"
+section: '9.8.1'
 description: Pipe table with no delimiter row; all rows are body rows; no header; columns default to left alignment
 
 input: |

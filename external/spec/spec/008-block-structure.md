@@ -63,6 +63,7 @@ The opener may carry an optional name and attributes. The closer is the bare tri
 #### 8.5.3 Delimiter placement
 
 Doubled-symbol delimiters may appear:
+
 - Surrounded by spaces: `aa ** bb ** cc`
 - Adjacent to literal text on one or both sides: `aa**bb**cc`
 - Adjacent to another delimiter: `__**text**__`
@@ -75,26 +76,26 @@ When N identical characters appear at an inline position, the following rules ap
 
 **Inline delimiter symbols** (inline parsing context):
 
-| Symbol | 1 | 2 | 3 | 4 | 5 |
-|--------|---|---|---|---|---|
-| `*` | literal | `Emphasis` open/close | `**` + `*` literal | `Emphasis([])` empty | `Emphasis([])` + `*` literal |
-| `_` | literal | `Strong` open/close | `__` + `_` literal | `Strong([])` empty | `Strong([])` + `_` literal |
-| `"` | literal | `QuoteInline(double)` open/close | `""` + `"` literal | `QuoteInline([])` empty | `QuoteInline([])` + `"` literal |
-| `'` | literal | `QuoteInline(single)` open/close | `''` + `'` literal | `QuoteInline([])` empty | `QuoteInline([])` + `'` literal |
-| \` | literal | `CodeInline` open/close | \`\` + \` literal¹ | `CodeInline("")` empty | `CodeInline("\`")` |
-| `~` | literal | `Strikethrough` open/close | `~~` + `~` literal¹ | `Strikethrough([])` empty | `Strikethrough([])` + `~` literal |
-| `$` | literal | `MathInline` open/close | `$$` + `$` literal¹ | `MathInline("")` empty | `MathInline("$")` |
+| Symbol | 1       | 2                                | 3                   | 4                         | 5                                 |
+| ------ | ------- | -------------------------------- | ------------------- | ------------------------- | --------------------------------- |
+| `*`    | literal | `Emphasis` open/close            | `**` + `*` literal  | `Emphasis([])` empty      | `Emphasis([])` + `*` literal      |
+| `_`    | literal | `Strong` open/close              | `__` + `_` literal  | `Strong([])` empty        | `Strong([])` + `_` literal        |
+| `"`    | literal | `QuoteInline(double)` open/close | `""` + `"` literal  | `QuoteInline([])` empty   | `QuoteInline([])` + `"` literal   |
+| `'`    | literal | `QuoteInline(single)` open/close | `''` + `'` literal  | `QuoteInline([])` empty   | `QuoteInline([])` + `'` literal   |
+| \`     | literal | `CodeInline` open/close          | \`\` + \` literal¹  | `CodeInline("")` empty    | `CodeInline("\`")`                |
+| `~`    | literal | `Strikethrough` open/close       | `~~` + `~` literal¹ | `Strikethrough([])` empty | `Strikethrough([])` + `~` literal |
+| `$`    | literal | `MathInline` open/close          | `$$` + `$` literal¹ | `MathInline("")` empty    | `MathInline("$")`                 |
 
 ¹ When appearing at the **start of a block line**, ` ``` `, `~~~`, `$$$` are block fences (CodeBlock, Meta, MathBlock respectively). In inline context, they parse as 2-delimiter + 1 literal.
 
 **Block/structural symbols**:
 
-| Symbol | 1 | 2 | 3 | 4+ |
-|--------|---|---|---|-----|
-| `=` | Heading L1 (+space) | Heading L2 | Heading L3 | … up to L9; 10+ = literal |
-| `>` | QuoteBlock L1 | QuoteBlock L2 | QuoteBlock L3 | Level N (no limit) |
-| `-` | list marker (`- `+space) or literal | literal `--` | ThematicBreak (3+) | ThematicBreak (extra chars silently dropped) |
-| `:` | literal | Span prefix `::name` | NamedBlock prefix `:::name` | literal |
+| Symbol | 1                                   | 2                    | 3                           | 4+                                           |
+| ------ | ----------------------------------- | -------------------- | --------------------------- | -------------------------------------------- |
+| `=`    | Heading L1 (+space)                 | Heading L2           | Heading L3                  | … up to L9; 10+ = literal                    |
+| `>`    | QuoteBlock L1                       | QuoteBlock L2        | QuoteBlock L3               | Level N (no limit)                           |
+| `-`    | list marker (`- `+space) or literal | literal `--`         | ThematicBreak (3+)          | ThematicBreak (extra chars silently dropped) |
+| `:`    | literal                             | Span prefix `::name` | NamedBlock prefix `:::name` | literal                                      |
 
 Paired symbols (`{}`/`[]`) follow their own rules and are not covered by this table.
 
@@ -104,13 +105,13 @@ When N identical characters appear and the parser recognizes a delimiter of leng
 
 Known collisions:
 
-| Sequence | Parsed as |
-|----------|-----------|
-| `~~~` at inline position | `~~` (Strikethrough opener) + `~` (literal) |
-| `$$$` at inline position | `$$` (MathInline opener) + `$` (literal) |
-| \`\`\` at inline position | \`\` (CodeInline opener) + \` (literal inside) |
-| `"""` at inline position | `""` (QuoteInline double opener) + `"` (literal) |
-| `'''` at inline position | `''` (QuoteInline single opener) + `'` (literal) |
-| `---` non-line-start | literal text (ThematicBreak only classified at line start) |
+| Sequence                  | Parsed as                                                  |
+| ------------------------- | ---------------------------------------------------------- |
+| `~~~` at inline position  | `~~` (Strikethrough opener) + `~` (literal)                |
+| `$$$` at inline position  | `$$` (MathInline opener) + `$` (literal)                   |
+| \`\`\` at inline position | \`\` (CodeInline opener) + \` (literal inside)             |
+| `"""` at inline position  | `""` (QuoteInline double opener) + `"` (literal)           |
+| `'''` at inline position  | `''` (QuoteInline single opener) + `'` (literal)           |
+| `---` non-line-start      | literal text (ThematicBreak only classified at line start) |
 
 ---

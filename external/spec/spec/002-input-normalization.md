@@ -10,9 +10,11 @@ Before any parsing begins, the following transformations are applied in order:
    After normalization, the input is a sequence of Unicode characters with `\n` line endings. \
    If the last character of the input is not `\n`, one is appended before any further processing.
 6. **Tabs:** Tab characters (`\t`) outside fenced blocks are normalized to a single space (`U+0020`) before block classification. Tabs inside fenced blocks (code blocks, Meta blocks, math blocks) are preserved literally. No warning is emitted.
-  - Leading tab on a block line → treated as one leading space, then stripped by block classification
-  - Tab inside inline content → treated as a single space (participates in whitespace collapsing)
-  - Tab inside code/meta/math fences → preserved literally (no change)
+
+- Leading tab on a block line → treated as one leading space, then stripped by block classification
+- Tab inside inline content → treated as a single space (participates in whitespace collapsing)
+- Tab inside code/meta/math fences → preserved literally (no change)
+
 7. **HTML entities:** HTML character references (`&amp;`, `&lt;`, `&#160;`, `&nbsp;`, etc.) are **not decoded**. They are emitted as literal `Text` nodes. The parser has no HTML entity table. Consumers rendering to HTML are responsible for deciding whether to re-encode or pass through.
 8. **BiDi Control Characters:** Unicode bidirectional control characters (e.g., `U+200E` LRM, `U+200F` RLM, `U+2066`–`U+2069` Isolates) MUST be preserved literally in `Text` nodes. The parser performs no special BiDi-aware reordering; it operates strictly on logical character order.
 

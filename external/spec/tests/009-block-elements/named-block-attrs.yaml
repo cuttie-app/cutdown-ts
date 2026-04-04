@@ -1,6 +1,6 @@
 id: named-block-attrs
-section: "9.10"
-description: "Attributes on the opening ::: line are attached to the NamedBlock node"
+section: '9.10'
+description: 'Attributes on the opening ::: line are attached to the NamedBlock node'
 
 input: |
   :::callout {.warning #note1}

@@ -1,5 +1,5 @@
 id: cdn-0014-quote-link-cross
-section: "10.12"
+section: '10.12'
 description: '\"\" closes while an unclosed [ link bracket is inside its content; CDN-0014 at the crossing \"\" closer'
 
 input: |
@@ -12,9 +12,9 @@ ast:
         kind: double
         children:
           - type: Text
-            value: "q start [link"
+            value: 'q start [link'
       - type: Text
-        value: " q end][/path]"
+        value: ' q end][/path]'
 
 diagnostics:
   - code: CDN-0014

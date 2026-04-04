@@ -1,6 +1,6 @@
 id: cdn-0014-emphasis-strong-cross
-section: "10.2"
-description: "** closes while __ is open inside its content; CDN-0014 at the crossing ** closer; trailing __ is orphaned literal"
+section: '10.2'
+description: '** closes while __ is open inside its content; CDN-0014 at the crossing ** closer; trailing __ is orphaned literal'
 
 input: |
   ** a __ b ** c __
@@ -11,9 +11,9 @@ ast:
       - type: Emphasis
         children:
           - type: Text
-            value: "a __ b"
+            value: 'a __ b'
       - type: Text
-        value: " c __"
+        value: ' c __'
 
 diagnostics:
   - code: CDN-0014

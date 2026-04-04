@@ -64,20 +64,20 @@ Conformance tests must assert:
 
 The following spec-defined recovery behaviors MUST emit a `warning`-level diagnostic. See the Diagnostic Code Registry for full trigger/recovery definitions.
 
-| Situation | Code | Recovery |
-|---|---|---|
-| Unclosed CodeBlock fence (` ``` `) | CDN-0001 | Content runs to end of document |
-| Unclosed MetaBlock fence (`~~~`) | CDN-0002 | Content runs to end of document |
-| Unclosed MathBlock fence (`$$$`) | CDN-0003 | Content runs to end of document |
-| Unclosed NamedBlock (`:::name`) | CDN-0004 | Content runs to end of document |
-| ThematicBreak text content dropped | CDN-0010 | Text between `---` and optional `{attrs}` is discarded |
-| Excess scope-chain `{...}` orphaned | CDN-0011 | Excess `{...}` at front of chain discarded; no AST output |
-| Heading level > 9 (10+ `=` signs) | CDN-0012 | Entire line emitted as literal `Text` |
-| `:::` not followed by `[ID_LITERAL]` (nameless opener) | CDN-0013 | Block candidate parsed as Paragraph; `:::` and `{attrs}` emitted as literal text |
-| Duplicate `id` token (`#id` or `id=` after first claim) | CDN-0020 | Duplicate dropped; first value kept |
-| `class=` alongside `.class` syntax | CDN-0021 | `class=` dropped; `.class` tokens kept |
-| Duplicate custom attribute key | CDN-0022 | Duplicate dropped; first value kept |
-| `~~~` fence inside a block container | CDN-0030 | Raw span (including fence lines) emitted as literal `Paragraph`; no `Meta` node created |
-| Crossed inline boundaries (`** __ … ** … __`) | CDN-0014 | Greedy parse unchanged; diagnostic only — span on the crossing closer |
+| Situation                                               | Code     | Recovery                                                                                |
+| ------------------------------------------------------- | -------- | --------------------------------------------------------------------------------------- |
+| Unclosed CodeBlock fence (` ``` `)                      | CDN-0001 | Content runs to end of document                                                         |
+| Unclosed MetaBlock fence (`~~~`)                        | CDN-0002 | Content runs to end of document                                                         |
+| Unclosed MathBlock fence (`$$$`)                        | CDN-0003 | Content runs to end of document                                                         |
+| Unclosed NamedBlock (`:::name`)                         | CDN-0004 | Content runs to end of document                                                         |
+| ThematicBreak text content dropped                      | CDN-0010 | Text between `---` and optional `{attrs}` is discarded                                  |
+| Excess scope-chain `{...}` orphaned                     | CDN-0011 | Excess `{...}` at front of chain discarded; no AST output                               |
+| Heading level > 9 (10+ `=` signs)                       | CDN-0012 | Entire line emitted as literal `Text`                                                   |
+| `:::` not followed by `[ID_LITERAL]` (nameless opener)  | CDN-0013 | Block candidate parsed as Paragraph; `:::` and `{attrs}` emitted as literal text        |
+| Duplicate `id` token (`#id` or `id=` after first claim) | CDN-0020 | Duplicate dropped; first value kept                                                     |
+| `class=` alongside `.class` syntax                      | CDN-0021 | `class=` dropped; `.class` tokens kept                                                  |
+| Duplicate custom attribute key                          | CDN-0022 | Duplicate dropped; first value kept                                                     |
+| `~~~` fence inside a block container                    | CDN-0030 | Raw span (including fence lines) emitted as literal `Paragraph`; no `Meta` node created |
+| Crossed inline boundaries (`** __ … ** … __`)           | CDN-0014 | Greedy parse unchanged; diagnostic only — span on the crossing closer                   |
 
 Strict parser profiles (per `./parser-profile-policy.md`) MAY upgrade any `warning` to `error`.

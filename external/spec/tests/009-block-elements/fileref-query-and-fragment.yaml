@@ -1,5 +1,5 @@
 id: fileref-query-and-fragment
-section: "9.9"
+section: '9.9'
 description: When both a query string and a fragment are present, src includes the query string and fragment is split off at #
 
 input: |

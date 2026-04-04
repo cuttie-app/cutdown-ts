@@ -1,5 +1,5 @@
 id: variable-id-literal
-section: "10.11"
+section: '10.11'
 description: Variable key must use ID_LITERAL characters; a key containing non-ID_LITERAL characters is emitted as literal text
 
 input: |
@@ -11,6 +11,6 @@ ast:
       - type: Variable
         key: valid-key
       - type: Text
-        value: " {{invalid key}} "
+        value: ' {{invalid key}} '
       - type: Variable
         key: also.valid_1

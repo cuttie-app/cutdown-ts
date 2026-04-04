@@ -1,6 +1,6 @@
 id: strikethrough-basic
-section: "10.4"
-description: "~~ delimiters produce Strikethrough; single ~ is literal text"
+section: '10.4'
+description: '~~ delimiters produce Strikethrough; single ~ is literal text'
 
 input: |
   ~~struck~~

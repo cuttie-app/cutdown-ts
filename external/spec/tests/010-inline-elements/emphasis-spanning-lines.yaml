@@ -1,5 +1,5 @@
 id: emphasis-spanning-lines
-section: "10.6"
+section: '10.6'
 description: Soft break inside an inline block is folded to zero; trailing space before NL preserves word boundary inside inline blocks
 
 input: "**bold \ncontinuation** and **nospace\ncontinuation**\n"
@@ -12,7 +12,7 @@ ast:
           - type: Text
             value: bold continuation
       - type: Text
-        value: " and "
+        value: ' and '
       - type: Emphasis
         children:
           - type: Text

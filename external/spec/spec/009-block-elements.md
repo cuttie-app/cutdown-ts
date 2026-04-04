@@ -12,17 +12,17 @@
 Regex: ^(={1,9}) (.+)$
 ```
 
-| Syntax | Level |
-|--------|-------|
-| `= Heading` | 1 |
-| `== Heading` | 2 |
-| `=== Heading` | 3 |
-| `==== Heading` | 4 |
-| `===== Heading` | 5 |
-| `====== Heading` | 6 |
-| `======= Heading` | 7 |
-| `======== Heading` | 8 |
-| `========= Heading` | 9 |
+| Syntax              | Level |
+| ------------------- | ----- |
+| `= Heading`         | 1     |
+| `== Heading`        | 2     |
+| `=== Heading`       | 3     |
+| `==== Heading`      | 4     |
+| `===== Heading`     | 5     |
+| `====== Heading`    | 6     |
+| `======= Heading`   | 7     |
+| `======== Heading`  | 8     |
+| `========= Heading` | 9     |
 
 A heading MUST be preceded by a blank line (or be the first non-comment line of the document, or the first non-comment line of the current block container — see §7.2).
 
@@ -37,12 +37,14 @@ An explicit empty `{}` as the last token means the heading carries no attributes
 ```
 = H1 [with link](..){.class}
 ```
+
 → `{.class}` is the last token → claimed by heading.
 → AST: `Section(level=1, {class:"class"}, [Text("H1 "), Link(children=[Text("with link")], href="..")])`
 
 ```
 = H1 [with link](..){.class}{}
 ```
+
 → `{}` is the last token → heading has no attributes.
 → `{.class}` attaches to preceding inline element (the link).
 → AST: `Section(level=1, {}, [Text("H1 "), Link(children=[Text("with link")], href="..", {class:"class"})])`
@@ -78,7 +80,7 @@ AST:
   └── Text("third line")
 
 Input (trailing space — explicit word boundary):
-  First line 
+  First line
   second line
 
 AST:
@@ -320,22 +322,26 @@ Example B — task first, numeric second:
 Cutdown uses a **stack-based, column-relative** model for all list types (unordered, ordered, task). Nesting is determined by comparing marker columns, not by fixed indentation increments.
 
 **Definitions:**
+
 - The **column** of a line is its count of leading spaces before the first non-space character. Recorded from the original source before leading-space stripping (§8.2).
 - The parser maintains a **nesting stack** of `(col, item)` pairs representing the currently open items from outermost to innermost.
 
 **New marker at column C** (pop-then-push rule):
+
 1. While the stack is non-empty and `C ≤ top.col`: pop.
 2. Push the new item at column C.
 
 A marker with `C > top.col` is a nested child (+1 depth). A marker with `C ≤ top.col` closes items until a shallower ancestor is found, then opens a sibling.
 
 **Non-marker line (continuation text) at column C:**
+
 1. While the stack depth ≥ 2 and `C < second-from-top.col`: pop.
 2. Continue the now-current item.
 
 Depth-0 items (no parent on the stack) accept any non-blank non-marker line unconditionally (threshold = −∞).
 
 **Blank lines:**
+
 - Blank line followed by content at **col 0** → block boundary. The current `List` node ends. If the next line is a list marker, a new `List` node begins.
 - Blank line followed by content at **col > 0** → absorbed by the list parser. The stack persists. A list marker continues the list via the pop-then-push rule; a non-marker line becomes block content inside the current item (`ListItem.children` becomes `Block[]`). The `List` is marked `loose: true`.
 
@@ -444,13 +450,13 @@ A delimiter row follows the first (header) row.
 **Delimiter row alignment syntax:**
 
 | Delimiter | Alignment |
-|-----------|-----------|
-| `\|------|` | none (default left) |
-| `\|:-----|` | left |
-| `\|-----:|` | right |
-| `\|:----:|` | center |
-| `\|-----,|` | comma (thousands separator style) |
-| `\|-----.|` | decimal (decimal point alignment) |
+| --------- | --------- | --------------------------------- |
+| `\|------ | `         | none (default left)               |
+| `\|:----- | `         | left                              |
+| `\|-----: | `         | right                             |
+| `\|:----: | `         | center                            |
+| `\|-----, | `         | comma (thousands separator style) |
+| `\|-----. | `         | decimal (decimal point alignment) |
 
 Rendering of comma and decimal alignment is the consumer's responsibility.
 
@@ -546,12 +552,12 @@ AST: FileRef { src: string, fragment: string|null, group: "image"|"video"|"audio
 
 The parser checks the file extension against known groups:
 
-| Group | Extensions |
-|-------|-----------|
+| Group   | Extensions                                  |
+| ------- | ------------------------------------------- |
 | `image` | `.png` `.jpg` `.jpeg` `.gif` `.webp` `.svg` |
-| `video` | `.mp4` `.avi` `.mov` |
-| `audio` | `.mp3` `.wav` `.aac` `.ogg` |
-| (none) | all other extensions |
+| `video` | `.mp4` `.avi` `.mov`                        |
+| `audio` | `.mp3` `.wav` `.aac` `.ogg`                 |
+| (none)  | all other extensions                        |
 
 The extension list for each group is configurable by the consumer. The above are defaults.
 
@@ -564,6 +570,7 @@ AST: FileRefGroup { group: "image"|"video"|"audio", children: (FileRef | ImageBl
 ```
 
 Rules:
+
 - Grouping only applies to known-group extensions.
 - Different groups do NOT merge. Two consecutive lines of different groups produce two separate nodes.
 - Unknown extension files (`group: null`) are never grouped.

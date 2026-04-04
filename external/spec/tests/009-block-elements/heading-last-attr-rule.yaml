@@ -1,5 +1,5 @@
 id: heading-last-attr-rule
-section: "9.1"
+section: '9.1'
 description: Explicit empty {} as last token means heading has no attributes; earlier {attrs} attach to inline elements
 
 input: |
@@ -10,10 +10,10 @@ ast:
     level: 1
     heading:
       - type: Text
-        value: "H1 "
+        value: 'H1 '
       - type: Link
         kind: external
-        href: ".."
+        href: '..'
         children:
           - type: Text
             value: link

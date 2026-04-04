@@ -1,5 +1,5 @@
 id: fileref-image-group
-section: "9.9.2"
+section: '9.9.2'
 description: Consecutive FileRef lines of the same known group (no blank line) are wrapped in FileRefGroup
 
 input: |

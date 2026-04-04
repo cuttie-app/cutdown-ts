@@ -1,5 +1,5 @@
 id: code-block-inside-listitem
-section: "9.4"
+section: '9.4'
 description: CodeBlock inside a list item is legal; list item's base offset (2 spaces) is stripped from content lines
 
 input: |

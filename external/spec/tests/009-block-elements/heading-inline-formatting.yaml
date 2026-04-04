@@ -1,5 +1,5 @@
 id: heading-inline-formatting
-section: "9.1"
+section: '9.1'
 description: Heading text is full inline content; inline formatting is parsed normally
 
 input: |
@@ -10,10 +10,10 @@ ast:
     level: 1
     heading:
       - type: Text
-        value: "Title with "
+        value: 'Title with '
       - type: Emphasis
         children:
           - type: Text
             value: bold
       - type: Text
-        value: " word"
+        value: ' word'

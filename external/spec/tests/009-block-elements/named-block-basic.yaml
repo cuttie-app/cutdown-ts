@@ -1,6 +1,6 @@
 id: named-block-basic
-section: "9.10"
-description: ":::name opens a NamedBlock; ::: on its own line closes it"
+section: '9.10'
+description: ':::name opens a NamedBlock; ::: on its own line closes it'
 
 input: |
   :::callout

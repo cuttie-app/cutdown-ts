@@ -1,5 +1,5 @@
 id: paragraph-textbreak
-section: "9.2"
+section: '9.2'
 description: Backslash at end of line produces a TextBreak node; parsing continues on the next line
 
 input: "First line\\\nsecond line\n"

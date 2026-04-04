@@ -1,5 +1,5 @@
 id: escape-special-char
-section: "4"
+section: '4'
 description: Backslash before special character emits the literal character; backslash is consumed
 
 input: |
@@ -9,4 +9,4 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "*"
+        value: '*'

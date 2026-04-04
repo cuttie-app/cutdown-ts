@@ -1,6 +1,6 @@
 id: cdn-0021-class-syntax-conflict
-section: "5.1"
-description: ".class syntax has priority over class= in the same {} block; class= is dropped; CDN-0021 warning"
+section: '5.1'
+description: '.class syntax has priority over class= in the same {} block; class= is dropped; CDN-0021 warning'
 
 input: |
   Hello {.foo class="bar"}

@@ -1,6 +1,6 @@
 id: ref-definition-basic
-section: "9.11"
-description: "[^id]: content defines a RefDefinition block with inline children"
+section: '9.11'
+description: '[^id]: content defines a RefDefinition block with inline children'
 
 input: |
   [^note]: See chapter 3 for details.

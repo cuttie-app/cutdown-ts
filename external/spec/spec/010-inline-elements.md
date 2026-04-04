@@ -6,35 +6,35 @@
 
 **Active openers** (in priority order — see §11):
 
-| Opener(s) | Element |
-|-----------|---------|
-| \`\` | `CodeInline` |
-| `\x` | Escape |
-| `[`, `![` | `Link`, `ImageInline` |
-| `$$` | `MathInline` |
+| Opener(s)                    | Element                                              |
+| ---------------------------- | ---------------------------------------------------- |
+| \`\`                         | `CodeInline`                                         |
+| `\x`                         | Escape                                               |
+| `[`, `![`                    | `Link`, `ImageInline`                                |
+| `$$`                         | `MathInline`                                         |
 | `**`, `__`, `~~`, `""`, `''` | `Emphasis`, `Strong`, `Strikethrough`, `QuoteInline` |
-| `::` | `Span` |
-| `{{` | `Variable` |
+| `::`                         | `Span`                                               |
+| `{{`                         | `Variable`                                           |
 
 Any character that does not form a recognized opener — including special characters (§4.1) that fail to complete a valid construct — is emitted as `Text`. Escaping (§4) applies: `\x` before a special character emits that character as `Text`.
 
 **Inline context locations** — inline rules run in every place marked "(parsed by inline rules)" in this spec:
 
-| Location | Section |
-|----------|---------|
-| Heading text | §9.1 |
-| Paragraph content | §9.2 |
-| List item and task item content | §9.7 |
-| Table cell content | §9.8.3 |
-| `ImageBlock` `alt` | §9.9.3 |
-| `RefDefinition` content | §9.11 |
+| Location                                                         | Section           |
+| ---------------------------------------------------------------- | ----------------- |
+| Heading text                                                     | §9.1              |
+| Paragraph content                                                | §9.2              |
+| List item and task item content                                  | §9.7              |
+| Table cell content                                               | §9.8.3            |
+| `ImageBlock` `alt`                                               | §9.9.3            |
+| `RefDefinition` content                                          | §9.11             |
 | Children of `Emphasis`, `Strong`, `Strikethrough`, `QuoteInline` | §10.2–10.4, 10.12 |
-| `[text]` slot of `Link` | §10.7 |
-| `alt` slot of `ImageInline` | §10.8 |
+| `[text]` slot of `Link`                                          | §10.7             |
+| `alt` slot of `ImageInline`                                      | §10.8             |
 
 The return type of inline rules is `Inline[]` (see §1 for the `Inline` union type).
 
-**Crossed boundary warning (CDN-0014):** When element A closes via its delimiter while an opener of a *different* inline type B (`**`, `__`, `~~`, `""`, `''`, `[`) is present inside A's content but emitted as literal text — and a B-closer exists after A's boundary — the parser emits CDN-0014 at the span of A's closing delimiter. The greedy parse result is unchanged.
+**Crossed boundary warning (CDN-0014):** When element A closes via its delimiter while an opener of a _different_ inline type B (`**`, `__`, `~~`, `""`, `''`, `[`) is present inside A's content but emitted as literal text — and a B-closer exists after A's boundary — the parser emits CDN-0014 at the span of A's closing delimiter. The greedy parse result is unchanged.
 
 ### 10.1 Text
 
@@ -116,7 +116,7 @@ AST: Strikethrough { children: Inline[], attributes: Attributes }
 
 ### 10.5 Inline Code
 
-**Syntax:**  \`\` \`code\` \`\` 
+**Syntax:** \`\` \`code\` \`\`
 
 - Double backtick only. Single backtick is literal text.
 - Content is literal — no inline parsing, no escape processing, no whitespace collapsing inside.
@@ -125,7 +125,7 @@ AST: Strikethrough { children: Inline[], attributes: Attributes }
 - Single backtick `` ` `` is always literal text: `Text("`")`.
 - Triple backtick \`\`\` in inline context: parsed as \`\` (opener) + \` (literal inside).
 
-```
+````
 Input:  ``code``
 AST:    CodeInline { value: "code" }
 
@@ -138,7 +138,7 @@ AST:    CodeInline { value: "`text" }
 Input:  ``test
         continues``
 AST:    CodeInline { value: "testcontinues" }   (soft break → zero)
-```
+````
 
 ```
 AST: CodeInline { value: string, attributes: Attributes }
@@ -160,11 +160,11 @@ AST: TextBreak
 
 **Line-ending summary:**
 
-| Line ending | Result |
-|---|---|
-| `word\n` | Soft break — folded to zero; `word` concatenated directly to next line |
-| `word \n` | Trailing space preserved — `Text("word ")` emitted; explicit word boundary |
-| `word\\n` | `TextBreak` node — explicit rendered line break |
+| Line ending | Result                                                                     |
+| ----------- | -------------------------------------------------------------------------- |
+| `word\n`    | Soft break — folded to zero; `word` concatenated directly to next line     |
+| `word \n`   | Trailing space preserved — `Text("word ")` emitted; explicit word boundary |
+| `word\\n`   | `TextBreak` node — explicit rendered line break                            |
 
 The trailing-space model applies uniformly inside inline blocks (Emphasis, Strong, QuoteInline, etc.) as well as in plain paragraph text.
 
@@ -332,6 +332,7 @@ AST: Variable { key: string, attributes: Attributes }
 ### 10.12 Inline Quote
 
 **Syntax:**
+
 - `"" content "" {attrs}` — double-quote style
 - `'' content '' {attrs}` — single-quote style
 

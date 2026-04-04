@@ -1,5 +1,5 @@
 id: list-ordered-inline-dot
-section: "9.7.2"
+section: '9.7.2'
 description: After the ordered list marker `N. `, the `N.` pattern has no special meaning in inline content; `1. 2. 3. item` is a single list item
 
 input: |
@@ -12,4 +12,4 @@ ast:
       - type: ListItem
         children:
           - type: Text
-            value: "2. 3. nested item"
+            value: '2. 3. nested item'

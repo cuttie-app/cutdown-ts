@@ -1,5 +1,5 @@
 id: block-cannot-interrupt-paragraph
-section: "8.1"
+section: '8.1'
 description: A heading-like line within a paragraph run is treated as paragraph content; soft break folds to zero
 
 input: |

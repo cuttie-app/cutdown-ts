@@ -1,5 +1,5 @@
 id: multiple-blank-lines
-section: "8.1"
+section: '8.1'
 description: Multiple consecutive blank lines are treated as a single block separator
 
 input: "Para one\n\n\n\nPara two\n"

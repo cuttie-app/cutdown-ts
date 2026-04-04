@@ -7,6 +7,7 @@
 ```
 
 Token types inside `{}`:
+
 - `#identifier` — sets the `id` attribute. Emits `{ key: "id", value: "identifier" }`. First `#` wins; any subsequent `#id` or `id=` token is dropped and CDN-0020 is emitted.
 - `.classname` — appends to the `class` entry. All `.classname` tokens in a block are collected into a single `{ key: "class", value: string[] }` entry. `.class` syntax has priority: if `class=` also appears, `class=` is dropped and CDN-0021 is emitted.
 - `key=value` — custom attribute. Emits `{ key: "key", value: "value" }`. Unquoted value: no spaces. Quoted value: spaces allowed. First occurrence wins; duplicate keys are dropped and CDN-0022 is emitted.
@@ -57,14 +58,14 @@ An empty `{}` is valid syntax. It claims its slot and assigns nothing to that no
 
 **Scope slots by context:**
 
-| Context | Slot 1 (last `{}`) | Slot 2 | Slot 3 |
-|---|---|---|---|
-| Standalone Paragraph | Paragraph | last attr-bearing inline | — |
-| List item | List | ListItem | last attr-bearing inline |
-| Table row — mid-table | Row | — | — |
-| Table row — last row | Table | Row | — |
-| FileRef / ImageBlock in group | FileRefGroup | FileRef / ImageBlock | last attr-bearing inline |
-| QuoteBlock nesting (`> >`) | outermost QuoteBlock | … inner levels … | Paragraph → inline |
+| Context                       | Slot 1 (last `{}`)   | Slot 2                   | Slot 3                   |
+| ----------------------------- | -------------------- | ------------------------ | ------------------------ |
+| Standalone Paragraph          | Paragraph            | last attr-bearing inline | —                        |
+| List item                     | List                 | ListItem                 | last attr-bearing inline |
+| Table row — mid-table         | Row                  | —                        | —                        |
+| Table row — last row          | Table                | Row                      | —                        |
+| FileRef / ImageBlock in group | FileRefGroup         | FileRef / ImageBlock     | last attr-bearing inline |
+| QuoteBlock nesting (`> >`)    | outermost QuoteBlock | … inner levels …         | Paragraph → inline       |
 
 Single NL does not break the attr chain. A sequence of `{}` blocks may span multiple lines (one per line) as long as no blank line appears between them.
 
@@ -124,11 +125,11 @@ An `{...}` sequence that cannot be assigned to any segment in the current scope 
 
 Orphan behaviour depends on position:
 
-| Position | Behaviour | Example |
-|---|---|---|
+| Position                                                                      | Behaviour                        | Example                                                    |
+| ----------------------------------------------------------------------------- | -------------------------------- | ---------------------------------------------------------- |
 | Middle of inline content (no preceding attr-bearing segment, slots exhausted) | `Text("{...}")` emitted verbatim | `price is {high}` → `Text("price is ")` + `Text("{high}")` |
-| After a double blank line (own block, no following content claims it) | `Text("{...}")` emitted verbatim | |
-| End of scope chain, all slots filled, excess `{}` at the front | silently dropped (no AST output) | `{.x}{.a}{.b}` on a 2-slot context → `{.x}` dropped |
+| After a double blank line (own block, no following content claims it)         | `Text("{...}")` emitted verbatim |                                                            |
+| End of scope chain, all slots filled, excess `{}` at the front                | silently dropped (no AST output) | `{.x}{.a}{.b}` on a 2-slot context → `{.x}` dropped        |
 
 `{` is always consumed as the start of a potential attribute block. If no matching `}` is found before end of inline context, `{` is emitted as `Text("{")` and parsing resumes from the character after `{`.
 

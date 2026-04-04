@@ -1,5 +1,5 @@
 id: quote-inline-cross-nesting
-section: "10.13"
+section: '10.13'
 description: Cross-kind nesting is allowed; single QuoteInline inside double
 
 input: |

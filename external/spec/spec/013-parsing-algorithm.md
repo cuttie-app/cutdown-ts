@@ -23,22 +23,22 @@ Cutdown uses a **single-pass** parsing strategy. A conforming parser MUST NOT ba
 
 Each block candidate is classified by its first line:
 
-| First line matches | Block type |
-|-------------------|------------|
-| `^(={1,9}) ` | Heading → Section |
-| `^---` | ThematicBreak |
-| `^` ``` ` | CodeBlock |
-| `^~~~` | Meta |
-| `^:::[ID_LITERAL]` | NamedBlock |
-| `^\|` | Table |
-| `^> ` | QuoteBlock |
+| First line matches      | Block type              |
+| ----------------------- | ----------------------- |
+| `^(={1,9}) `            | Heading → Section       |
+| `^---`                  | ThematicBreak           |
+| `^` ``` `               | CodeBlock               |
+| `^~~~`                  | Meta                    |
+| `^:::[ID_LITERAL]`      | NamedBlock              |
+| `^\|`                   | Table                   |
+| `^> `                   | QuoteBlock              |
 | `^- ` or `^- \[[ x]\] ` | List (unordered / task) |
-| `^[0-9]+\. ` | List (ordered) |
-| `^\[^[ID_LITERAL]` | RefDefinition |
-| `^\$\$\$` | MathBlock |
-| `^/` | FileRef |
-| `^!\[` | ImageBlock |
-| (anything else) | Paragraph |
+| `^[0-9]+\. `            | List (ordered)          |
+| `^\[^[ID_LITERAL]`      | RefDefinition           |
+| `^\$\$\$`               | MathBlock               |
+| `^/`                    | FileRef                 |
+| `^!\[`                  | ImageBlock              |
+| (anything else)         | Paragraph               |
 
 ### 13.4 Phase 4 — Inline Parsing
 

@@ -1,5 +1,5 @@
 id: section-inside-listitem
-section: "7.2"
+section: '7.2'
 description: A heading inside a list item creates a Section bounded by the ListItem container
 
 input: |

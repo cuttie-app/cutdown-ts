@@ -1,5 +1,5 @@
 id: consecutive-breaks-ghost-page
-section: "7.4"
+section: '7.4'
 description: Two consecutive ThematicBreaks produce an intermediate page containing only the first ThematicBreak
 
 input: |

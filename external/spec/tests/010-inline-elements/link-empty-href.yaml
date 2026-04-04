@@ -1,6 +1,6 @@
 id: link-empty-href
-section: "10.7"
-description: "[]() with empty text and empty href is valid; both are preserved in the AST"
+section: '10.7'
+description: '[]() with empty text and empty href is valid; both are preserved in the AST'
 
 input: |
   []()
@@ -10,4 +10,4 @@ ast:
     children:
       - type: Link
         kind: external
-        href: ""
+        href: ''

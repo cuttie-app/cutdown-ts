@@ -1,5 +1,5 @@
 id: list-blank-col0-resets
-section: "9.7.5"
+section: '9.7.5'
 description: Blank line followed by a col-0 list marker ends the current List and starts a new one
 
 input: |

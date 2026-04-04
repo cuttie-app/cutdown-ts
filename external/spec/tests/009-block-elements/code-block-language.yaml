@@ -1,5 +1,5 @@
 id: code-block-language
-section: "9.4"
+section: '9.4'
 description: Language identifier on opening fence is stored in the language field
 
 input: |

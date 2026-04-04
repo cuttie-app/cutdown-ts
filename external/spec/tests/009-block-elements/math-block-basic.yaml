@@ -1,5 +1,5 @@
 id: math-block-basic
-section: "9.12"
+section: '9.12'
 description: $$$ fence produces a MathBlock with literal formula content
 
 input: |
@@ -9,4 +9,4 @@ input: |
 
 ast:
   - type: MathBlock
-    formula: "E = mc^2"
+    formula: 'E = mc^2'

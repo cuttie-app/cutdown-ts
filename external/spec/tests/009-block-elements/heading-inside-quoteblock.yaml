@@ -1,5 +1,5 @@
 id: heading-inside-quoteblock
-section: "9.1"
+section: '9.1'
 description: A heading inside a QuoteBlock is legal; produces a Section as a child of the QuoteBlock
 
 input: |

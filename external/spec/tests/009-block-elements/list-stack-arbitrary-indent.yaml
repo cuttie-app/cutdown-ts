@@ -1,11 +1,11 @@
 id: list-stack-arbitrary-indent
-section: "9.7.5"
+section: '9.7.5'
 description: Stack model resolves arbitrary indentation; any col > parent.col nests one level regardless of delta; col <= current.col pops to sibling
 
 input: |
-      - item A
-          - item B
-      - item C
+  - item A
+      - item B
+  - item C
 
 ast:
   - type: List

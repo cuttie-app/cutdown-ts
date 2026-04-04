@@ -1,5 +1,5 @@
 id: named-block-indent-collapse
-section: "9.10"
+section: '9.10'
 description: The first content line establishes the base indentation; that many spaces are stripped from all content lines
 
 input: |

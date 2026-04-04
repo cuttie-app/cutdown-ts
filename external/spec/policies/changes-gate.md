@@ -74,41 +74,64 @@ Every Cutdown proposal MUST include all of the following:
    - Declare required external capabilities (if any) per `./capability-policy.md`.
    - Define denied-capability fallback and diagnostic behavior.
 10. Serialization impact declaration
-   - Declare any effect on canonical output ordering/normalization.
-   - Update snapshots/rules per `./canonical-serialization-policy.md`.
+
+- Declare any effect on canonical output ordering/normalization.
+- Update snapshots/rules per `./canonical-serialization-policy.md`.
+
 11. Compatibility fallback declaration
-   - Define behavior when construct/profile/version support is missing.
-   - Confirm deterministic fallback + diagnostic coverage per `./compatibility-fallback-policy.md`.
+
+- Define behavior when construct/profile/version support is missing.
+- Confirm deterministic fallback + diagnostic coverage per `./compatibility-fallback-policy.md`.
+
 12. Corpus evolution declaration
-   - Classify conformance corpus changes as additive/fix/breaking.
-   - Provide rationale and version-impact mapping per `./conformance-corpus-governance.md`.
+
+- Classify conformance corpus changes as additive/fix/breaking.
+- Provide rationale and version-impact mapping per `./conformance-corpus-governance.md`.
+
 13. Profile source declaration
-   - Confirm whether behavior depends on external profile configuration.
-   - If document-embedded hints exist, define non-authoritative handling per `./profile-source-policy.md`.
+
+- Confirm whether behavior depends on external profile configuration.
+- If document-embedded hints exist, define non-authoritative handling per `./profile-source-policy.md`.
+
 14. Compliance-level impact declaration
-   - State whether the change affects Level 1/2/3 compliance definitions or evidence expectations.
-   - Update claim requirements per `./compliance-levels-policy.md`.
+
+- State whether the change affects Level 1/2/3 compliance definitions or evidence expectations.
+- Update claim requirements per `./compliance-levels-policy.md`.
+
 15. Evidence freshness impact declaration
-   - State whether the change introduces a new revalidation trigger.
-   - Confirm version-triggered evidence rules per `./compliance-evidence-freshness-policy.md`.
+
+- State whether the change introduces a new revalidation trigger.
+- Confirm version-triggered evidence rules per `./compliance-evidence-freshness-policy.md`.
+
 16. Compliance failure-response impact declaration
-   - State whether the change affects downgrade/restoration obligations.
-   - Align failure handling requirements per `./compliance-failure-response-policy.md`.
+
+- State whether the change affects downgrade/restoration obligations.
+- Align failure handling requirements per `./compliance-failure-response-policy.md`.
+
 17. Diagnostic code registry impact declaration
-   - State whether new/deprecated/removed diagnostic codes are introduced.
-   - Update central code lifecycle records per `./diagnostic-code-registry-policy.md`.
+
+- State whether new/deprecated/removed diagnostic codes are introduced.
+- Update central code lifecycle records per `./diagnostic-code-registry-policy.md`.
+
 18. Publication lifecycle declaration
-   - Assign change lifecycle state (`Draft`/`Accepted`/`Effective`) and target version.
-   - Include effective date and migration publication plan per `./change-publication-policy.md`.
+
+- Assign change lifecycle state (`Draft`/`Accepted`/`Effective`) and target version.
+- Include effective date and migration publication plan per `./change-publication-policy.md`.
+
 19. Cross-implementation validation declaration
-   - Confirm required reference-parser validation status.
-   - Record optional non-reference implementation results per `./cross-implementation-validation-policy.md`.
+
+- Confirm required reference-parser validation status.
+- Record optional non-reference implementation results per `./cross-implementation-validation-policy.md`.
+
 20. Reference-parser alignment declaration
-   - State whether change introduces temporary reference-parser divergence.
-   - If divergent, publish non-conformance disclosure and remediation plan per `./reference-parser-status-policy.md`.
+
+- State whether change introduces temporary reference-parser divergence.
+- If divergent, publish non-conformance disclosure and remediation plan per `./reference-parser-status-policy.md`.
+
 21. Governance-review impact declaration
-   - State whether policy amendment needs scheduled-cycle routing or emergency path routing.
-   - Define follow-up review obligations per `./governance-review-policy.md`.
+
+- State whether policy amendment needs scheduled-cycle routing or emergency path routing.
+- Define follow-up review obligations per `./governance-review-policy.md`.
 
 Proposals missing any section are rejected as incomplete.
 

@@ -1,5 +1,5 @@
 id: section-nesting
-section: "7.1"
+section: '7.1'
 description: Level-2 heading opens a child Section inside a level-1 Section
 
 input: |

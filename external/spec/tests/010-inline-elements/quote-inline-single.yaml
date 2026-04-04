@@ -1,5 +1,5 @@
 id: quote-inline-single
-section: "10.13"
+section: '10.13'
 description: "'' delimiters produce QuoteInline with kind=single"
 
 input: |

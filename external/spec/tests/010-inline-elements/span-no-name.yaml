@@ -1,6 +1,6 @@
 id: span-no-name
-section: "10.10"
-description: ":: not followed by a valid [ID_LITERAL] name is emitted as literal Text(\"::\")"
+section: '10.10'
+description: ':: not followed by a valid [ID_LITERAL] name is emitted as literal Text("::")'
 
 input: |
   hello :: world
@@ -9,4 +9,4 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "hello :: world"
+        value: 'hello :: world'

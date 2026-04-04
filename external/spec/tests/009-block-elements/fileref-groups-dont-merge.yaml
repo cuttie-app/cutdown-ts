@@ -1,5 +1,5 @@
 id: fileref-groups-dont-merge
-section: "9.9.2"
+section: '9.9.2'
 description: FileRef lines from different known groups do not merge into the same FileRefGroup
 
 input: |

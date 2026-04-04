@@ -1,5 +1,5 @@
 id: paragraph-multiline
-section: "9.2"
+section: '9.2'
 description: A single newline between paragraph lines is a soft break folded to zero; lines concatenate directly with no separator
 
 input: |

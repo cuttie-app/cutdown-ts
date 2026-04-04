@@ -1,5 +1,5 @@
 id: thematic-break-basic
-section: "9.3"
+section: '9.3'
 description: Three or more dashes at line start produce a ThematicBreak; opens a new Page
 
 input: |

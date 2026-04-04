@@ -1,6 +1,6 @@
 id: cdn-0013-nameless-namedblock-opener
-section: "9.10"
-description: "::: not followed immediately by [ID_LITERAL]; block classified as Paragraph; all content literal; CDN-0013 warning"
+section: '9.10'
+description: '::: not followed immediately by [ID_LITERAL]; block classified as Paragraph; all content literal; CDN-0013 warning'
 
 input: |
   ::: {.alert}
@@ -9,7 +9,7 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "::: {.alert}"
+        value: '::: {.alert}'
 
 diagnostics:
   - code: CDN-0013

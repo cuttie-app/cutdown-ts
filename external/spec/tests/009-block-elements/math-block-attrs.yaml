@@ -1,5 +1,5 @@
 id: math-block-attrs
-section: "9.12"
+section: '9.12'
 description: Attributes on the $$$ opening line are attached to the MathBlock node
 
 input: |
@@ -9,7 +9,7 @@ input: |
 
 ast:
   - type: MathBlock
-    formula: "E = mc^2"
+    formula: 'E = mc^2'
     attributes:
       - key: class
         value: [display]

@@ -1,6 +1,6 @@
 id: variable-basic
-section: "10.12"
-description: "{{key}} produces a Variable node with the key string"
+section: '10.12'
+description: '{{key}} produces a Variable node with the key string'
 
 input: |
   Hello {{title}}!
@@ -9,8 +9,8 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "Hello "
+        value: 'Hello '
       - type: Variable
         key: title
       - type: Text
-        value: "!"
+        value: '!'

@@ -1,5 +1,5 @@
 id: table-gfm
-section: "9.8.2"
+section: '9.8.2'
 description: GFM table; delimiter row determines column alignment and separates head from body
 
 input: |
@@ -40,7 +40,7 @@ ast:
             column: 1
             children:
               - type: Text
-                value: "42"
+                value: '42'
       - type: Row
         children:
           - type: Cell
@@ -54,7 +54,7 @@ ast:
             column: 1
             children:
               - type: Text
-                value: "17"
+                value: '17'
     columns:
       - type: Column
         align: left

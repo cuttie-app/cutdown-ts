@@ -2,12 +2,12 @@
 
 ## What you can contribute
 
-| Type | Process |
-|---|---|
-| Spec text — corrections, clarifications, typo fixes (`spec/`, `policies/`) | Open a PR directly |
-| Conformance tests (`tests/`) | Open a PR directly |
-| Language proposals — new syntax, constructs, diagnostic codes | File an issue first (see below) |
-| Extension proposals (`extensions/`) | File an issue first (see below) |
+| Type                                                                       | Process                         |
+| -------------------------------------------------------------------------- | ------------------------------- |
+| Spec text — corrections, clarifications, typo fixes (`spec/`, `policies/`) | Open a PR directly              |
+| Conformance tests (`tests/`)                                               | Open a PR directly              |
+| Language proposals — new syntax, constructs, diagnostic codes              | File an issue first (see below) |
+| Extension proposals (`extensions/`)                                        | File an issue first (see below) |
 
 ---
 

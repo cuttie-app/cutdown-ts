@@ -1,6 +1,6 @@
 id: cdn-0004-unclosed-namedblock
-section: "9.10"
-description: "Unclosed :::name opener; content runs to end of document as NamedBlock children; CDN-0004 warning emitted"
+section: '9.10'
+description: 'Unclosed :::name opener; content runs to end of document as NamedBlock children; CDN-0004 warning emitted'
 
 input: ":::callout\nSome content\n"
 

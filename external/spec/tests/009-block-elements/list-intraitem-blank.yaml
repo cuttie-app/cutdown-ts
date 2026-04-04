@@ -1,5 +1,5 @@
 id: list-intraitem-blank
-section: "9.7.5"
+section: '9.7.5'
 description: Blank line + col-0 marker resets the list; blank line + indented content absorbed making item block-mode and list loose
 
 input: |

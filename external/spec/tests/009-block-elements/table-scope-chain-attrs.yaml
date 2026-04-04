@@ -1,6 +1,6 @@
 id: table-scope-chain-attrs
-section: "9.8.3"
-description: "On the last row, two trailing {} tokens distribute right-to-left: last to Table, preceding to Row"
+section: '9.8.3'
+description: 'On the last row, two trailing {} tokens distribute right-to-left: last to Table, preceding to Row'
 
 input: |
   | td1 | td2 | {.row-class}{.table-class}

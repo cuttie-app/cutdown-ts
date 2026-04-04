@@ -1,5 +1,5 @@
 id: comment-stripped
-section: "8.3"
+section: '8.3'
 description: A comment line (first char is #) produces no AST node
 
 input: |

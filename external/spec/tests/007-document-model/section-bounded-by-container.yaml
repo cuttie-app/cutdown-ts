@@ -1,5 +1,5 @@
 id: section-bounded-by-container
-section: "7.2"
+section: '7.2'
 description: A Section inside a block container does not affect the outer Section hierarchy; content after the container belongs to the outer scope
 
 input: |

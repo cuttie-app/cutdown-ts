@@ -1,5 +1,5 @@
 id: code-block-inside-namedblock
-section: "9.4"
+section: '9.4'
 description: CodeBlock inside a NamedBlock is legal; NamedBlock base offset is stripped from content lines
 
 input: |

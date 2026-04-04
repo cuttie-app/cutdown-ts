@@ -1,5 +1,5 @@
 id: escape-backslash
-section: "4"
+section: '4'
 description: "\\\\ produces a single literal backslash (special char escaped)"
 
 input: |

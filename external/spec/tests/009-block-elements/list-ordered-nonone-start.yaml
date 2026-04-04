@@ -1,5 +1,5 @@
 id: list-ordered-nonone-start
-section: "9.7.2"
+section: '9.7.2'
 description: Ordered list starting at a number other than 1; start captures the first item number
 
 input: |

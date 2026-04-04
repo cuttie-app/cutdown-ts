@@ -1,5 +1,5 @@
 id: thematic-break-inside-namedblock
-section: "9.3"
+section: '9.3'
 description: ThematicBreak inside a NamedBlock emits a ThematicBreak node without creating a new Page
 
 input: |

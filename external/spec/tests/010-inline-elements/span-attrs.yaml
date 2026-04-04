@@ -1,5 +1,5 @@
 id: span-attrs
-section: "10.10"
+section: '10.10'
 description: Span carries attributes trailing after the name
 
 input: |

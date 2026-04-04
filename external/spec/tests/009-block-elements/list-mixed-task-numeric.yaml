@@ -1,6 +1,6 @@
 id: list-mixed-task-numeric
-section: "9.7"
-description: "TaskItem-first list with numeric item: whole list is unordered, numeric item becomes plain ListItem"
+section: '9.7'
+description: 'TaskItem-first list with numeric item: whole list is unordered, numeric item becomes plain ListItem'
 
 input: |
   - [ ] Task item first

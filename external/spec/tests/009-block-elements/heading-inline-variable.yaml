@@ -1,5 +1,5 @@
 id: heading-inline-variable
-section: "9.1"
+section: '9.1'
 description: Heading text is parsed by inline rules; a variable inside a heading is resolved as a Variable node
 
 input: |
@@ -10,6 +10,6 @@ ast:
     level: 1
     heading:
       - type: Text
-        value: "Title "
+        value: 'Title '
       - type: Variable
         key: var

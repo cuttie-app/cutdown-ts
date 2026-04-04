@@ -1,5 +1,5 @@
 id: heading-first-line-of-container
-section: "9.1"
+section: '9.1'
 description: A heading as the first non-comment line of a block container needs no preceding blank line
 
 input: |

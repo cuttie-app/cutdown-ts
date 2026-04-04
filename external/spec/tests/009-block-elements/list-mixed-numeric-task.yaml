@@ -1,6 +1,6 @@
 id: list-mixed-numeric-task
-section: "9.7"
-description: "Numeric-first list containing a task item: list is ordered, TaskItem retains its nature"
+section: '9.7'
+description: 'Numeric-first list containing a task item: list is ordered, TaskItem retains its nature'
 
 input: |
   1. First ordered item

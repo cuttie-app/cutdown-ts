@@ -1,5 +1,5 @@
 id: imageblock-inline-alt
-section: "9.9.3"
+section: '9.9.3'
 description: ImageBlock alt is parsed by inline rules; emphasis and plain text are valid alt content
 
 input: |
@@ -9,11 +9,11 @@ ast:
   - type: ImageBlock
     alt:
       - type: Text
-        value: "A "
+        value: 'A '
       - type: Emphasis
         children:
           - type: Text
             value: bold
       - type: Text
-        value: " caption"
+        value: ' caption'
     src: photos/shot.jpg

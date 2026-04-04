@@ -1,6 +1,6 @@
 id: variable-empty-key
-section: "10.12"
-description: "{{}} with empty key is invalid; emitted as literal text"
+section: '10.12'
+description: '{{}} with empty key is invalid; emitted as literal text'
 
 input: |
   {{}}
@@ -9,4 +9,4 @@ ast:
   - type: Paragraph
     children:
       - type: Text
-        value: "{{}}"
+        value: '{{}}'

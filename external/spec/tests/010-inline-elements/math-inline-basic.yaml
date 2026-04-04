@@ -1,6 +1,6 @@
 id: math-inline-basic
-section: "10.11"
-description: "$$ delimiters produce MathInline with literal formula; single $ is literal text"
+section: '10.11'
+description: '$$ delimiters produce MathInline with literal formula; single $ is literal text'
 
 input: |
   $$a^2 + b^2$$
