@@ -1,41 +1,41 @@
 import type {
   Attribute,
-  Diagnostic,
   Block,
-  Document,
-  Page,
-  Section,
-  Paragraph,
-  ThematicBreak,
   CodeBlock,
-  Meta,
-  QuoteBlock,
-  List,
-  ListItem,
-  TaskItem,
-  ListItemLike,
-  Table,
-  Row,
   Column,
+  Diagnostic,
+  Document,
+  FileGroup,
   FileRef,
   FileRefGroup,
   ImageBlock,
-  NamedBlock,
-  RefDefinition,
-  MathBlock,
-  FileGroup,
   Inline,
+  List,
+  ListItem,
+  ListItemLike,
+  MathBlock,
+  Meta,
+  NamedBlock,
+  Page,
+  Paragraph,
+  QuoteBlock,
+  RefDefinition,
+  Row,
+  Section,
+  Table,
+  TaskItem,
+  ThematicBreak,
 } from '../types/document'
-import { parseAttrBlock, extractTrailingAttrGroups } from './attrs.ts'
-import { parseInlineText, parseInlineLines } from './inline.ts'
+import { extractTrailingAttrGroups, parseAttrBlock } from './attrs.ts'
+import { parseInlineLines, parseInlineText } from './inline.ts'
 import {
-  isIdStart,
-  isIdChar,
-  isListMarkerLine,
-  isDelimiterRow,
-  splitCells,
-  parseColumnAlign,
   detectFileGroup,
+  isDelimiterRow,
+  isIdChar,
+  isIdStart,
+  isListMarkerLine,
+  parseColumnAlign,
+  splitCells,
 } from './utils.ts'
 
 // ─── Scope-chain distribution ─────────────────────────────────────────────────
@@ -414,8 +414,7 @@ export class BlockParser {
 
     while (contentLines.length > 0 && contentLines[contentLines.length - 1]?.trim() === '') contentLines.pop()
     const raw = contentLines.join('\n') + (contentLines.length > 0 ? '\n' : '')
-    const node = { type: 'Meta', format, raw } as Meta
-    return node
+    return { type: 'Meta', format, raw } as Meta
   }
 
   // ── MathBlock ─────────────────────────────────────────────────────────────
@@ -830,7 +829,7 @@ export class BlockParser {
 
   private parseImageBlock() {
     const line = this.advance().trimStart()
-    const m = line.match(/^!\[([^\]]*)\]\(([^)]*)\)(.*)?$/)
+    const m = line.match(/^!\[([^\]]*)]\(([^)]*)\)(.*)?$/)
     if (!m) {
       const { nodes } = parseInlineText(line)
       return { type: 'Paragraph', children: nodes } as Paragraph
@@ -899,7 +898,7 @@ export class BlockParser {
 
   private parseRefDefinition() {
     const line = this.advance().trimStart()
-    const m = line.match(/^\[\^([^\]]+)\]:\s*(.*)/)
+    const m = line.match(/^\[\^([^\]]+)]:\s*(.*)/)
     if (!m) {
       const { nodes } = parseInlineText(line)
       return { type: 'Paragraph', children: nodes } as Paragraph
