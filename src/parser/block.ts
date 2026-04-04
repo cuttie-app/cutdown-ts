@@ -1,15 +1,41 @@
 import type {
-  Attribute, Diagnostic,
-  Block, Document, Page, Section, Paragraph, ThematicBreak, CodeBlock,
-  Meta, QuoteBlock, List, ListItem, TaskItem, ListItemLike,
-  Table, Row, Column, FileRef, FileRefGroup, ImageBlock,
-  NamedBlock, RefDefinition, MathBlock, FileGroup, Inline,
+  Attribute,
+  Diagnostic,
+  Block,
+  Document,
+  Page,
+  Section,
+  Paragraph,
+  ThematicBreak,
+  CodeBlock,
+  Meta,
+  QuoteBlock,
+  List,
+  ListItem,
+  TaskItem,
+  ListItemLike,
+  Table,
+  Row,
+  Column,
+  FileRef,
+  FileRefGroup,
+  ImageBlock,
+  NamedBlock,
+  RefDefinition,
+  MathBlock,
+  FileGroup,
+  Inline,
 } from '../types/document'
 import { parseAttrBlock, extractTrailingAttrGroups } from './attrs.ts'
 import { parseInlineText, parseInlineLines } from './inline.ts'
 import {
-  isIdStart, isIdChar, isListMarkerLine,
-  isDelimiterRow, splitCells, parseColumnAlign, detectFileGroup,
+  isIdStart,
+  isIdChar,
+  isListMarkerLine,
+  isDelimiterRow,
+  splitCells,
+  parseColumnAlign,
+  detectFileGroup,
 } from './utils.ts'
 
 // ─── Scope-chain distribution ─────────────────────────────────────────────────
@@ -57,9 +83,21 @@ function distributeScopeChain(groups: Attribute[][], slots: unknown[], diagnosti
 
 function isBlockType(type: string): boolean {
   return [
-    'Section', 'Paragraph', 'ThematicBreak', 'CodeBlock', 'Meta', 'QuoteBlock',
-    'List', 'Table', 'FileRef', 'ImageBlock', 'FileRefGroup', 'NamedBlock',
-    'RefDefinition', 'MathBlock', 'Spacer',
+    'Section',
+    'Paragraph',
+    'ThematicBreak',
+    'CodeBlock',
+    'Meta',
+    'QuoteBlock',
+    'List',
+    'Table',
+    'FileRef',
+    'ImageBlock',
+    'FileRefGroup',
+    'NamedBlock',
+    'RefDefinition',
+    'MathBlock',
+    'Spacer',
   ].includes(type)
 }
 
@@ -145,7 +183,7 @@ function groupFileRefs(blocks: Block[]): Block[] {
 
 function processListItemChildren(children: (Block | Inline)[]): (Block | Inline)[] {
   const blocks = children.filter(
-    (c) => typeof c === 'object' && 'type' in c && isBlockType((c as Block).type),
+    (c) => typeof c === 'object' && 'type' in c && isBlockType((c as Block).type)
   ) as Block[]
   const inlines = children.filter((c) => !blocks.includes(c as Block))
 
@@ -165,7 +203,7 @@ function processBlocks(blocks: Block[]): Block[] {
   for (const block of result) {
     if (block.type === 'Section' || block.type === 'QuoteBlock' || block.type === 'NamedBlock') {
       ;(block as unknown as Record<string, unknown>)['children'] = processBlocks(
-        (block as unknown as Record<string, Block[]>)['children'] as Block[],
+        (block as unknown as Record<string, Block[]>)['children'] as Block[]
       )
     } else if (block.type === 'List') {
       for (const item of (block as List).children) {
@@ -513,7 +551,11 @@ export class BlockParser {
     if (isGfm && rows.length > 0) {
       head = rows[0] ? [rows[0]] : []
       body = rows.slice(1)
-      body.forEach((r, i) => r.children.forEach((c) => { c.row = i }))
+      body.forEach((r, i) =>
+        r.children.forEach((c) => {
+          c.row = i
+        })
+      )
     }
 
     const table: Table = { type: 'Table', kind: isGfm ? 'gfm' : 'simple', body, columns }
@@ -617,7 +659,11 @@ export class BlockParser {
         list.start = firstStart
       }
       if (result.attrGroups && result.attrGroups.length > 0) {
-        distributeScopeChain(result.attrGroups, [list, result.item, (result.item as unknown as Record<string, unknown>)['children']], this.diagnostics)
+        distributeScopeChain(
+          result.attrGroups,
+          [list, result.item, (result.item as unknown as Record<string, unknown>)['children']],
+          this.diagnostics
+        )
       }
     }
 

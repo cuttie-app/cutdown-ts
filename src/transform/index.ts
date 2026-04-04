@@ -61,7 +61,7 @@ type ExtractDeltas<TPlugins extends readonly Plugin[]> = {
  */
 export function pipeline<const TPlugins extends readonly Plugin[]>(
   parser: (input: string) => ASTResult<NodeMap>,
-  plugins: TPlugins,
+  plugins: TPlugins
 ): (input: string) => ASTResult<Apply<NodeMap, ExtractDeltas<TPlugins>>> {
   return (input: string) => {
     const result = parser(input)

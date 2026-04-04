@@ -17,7 +17,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('Hello world')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => {
+        texts.push(node.value)
+      },
     })
     expect(texts).toEqual(['Hello world'])
   })
@@ -26,8 +28,12 @@ describe('ASTResult.walk()', () => {
     const result = parse('**italic text**')
     const order: string[] = []
     result.walk({
-      Text: (node) => { order.push(`Text:${node.value}`) },
-      Emphasis: () => { order.push('Emphasis') },
+      Text: (node) => {
+        order.push(`Text:${node.value}`)
+      },
+      Emphasis: () => {
+        order.push('Emphasis')
+      },
     })
     // Text is child of Emphasis — should appear before Emphasis
     expect(order).toEqual(['Text:italic text', 'Emphasis'])
@@ -37,7 +43,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('First\n\nSecond')
     const paragraphs: number[] = []
     result.walk({
-      Paragraph: (node) => { paragraphs.push(node.children.length) },
+      Paragraph: (node) => {
+        paragraphs.push(node.children.length)
+      },
     })
     expect(paragraphs.length).toBe(2)
   })
@@ -49,7 +57,9 @@ describe('ASTResult.walk()', () => {
     })
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => {
+        texts.push(node.value)
+      },
     })
     expect(texts).toEqual(['HELLO'])
   })
@@ -58,7 +68,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('= Heading text')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => {
+        texts.push(node.value)
+      },
     })
     expect(texts).toContain('Heading text')
   })
@@ -67,7 +79,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('[click here](https://example.com)')
     const links: string[] = []
     result.walk({
-      Link: (node) => { links.push(node.href ?? '') },
+      Link: (node) => {
+        links.push(node.href ?? '')
+      },
     })
     expect(links).toEqual(['https://example.com'])
   })
@@ -76,7 +90,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('```js\nconsole.log("hi")\n```')
     const languages: string[] = []
     result.walk({
-      CodeBlock: (node) => { languages.push(node.language) },
+      CodeBlock: (node) => {
+        languages.push(node.language)
+      },
     })
     expect(languages).toEqual(['js'])
   })
@@ -85,7 +101,9 @@ describe('ASTResult.walk()', () => {
     const result = parse('Page one\n\n---\n\nPage two')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => {
+        texts.push(node.value)
+      },
     })
     expect(texts).toContain('Page one')
     expect(texts).toContain('Page two')
@@ -105,7 +123,9 @@ describe('pipeline()', () => {
     const result = enrichedParse('hello world')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { if(node)  texts.push(node.value) },
+      Text: (node) => {
+        if (node) texts.push(node.value)
+      },
     })
     expect(texts).toEqual(['HELLO WORLD'])
   })
@@ -125,7 +145,9 @@ describe('pipeline()', () => {
     const result = enrichedParse('x')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { if(node) texts.push(node.value) },
+      Text: (node) => {
+        if (node) texts.push(node.value)
+      },
     })
     expect(texts).toEqual(['xAB'])
   })
@@ -147,7 +169,9 @@ describe('pipeline()', () => {
 
   it('type-level: plugin with delta enriches node types', () => {
     // This test is primarily compile-time; we just verify runtime correctness
-    interface EnrichedLink extends Link { resolved: boolean }
+    interface EnrichedLink extends Link {
+      resolved: boolean
+    }
 
     const linkPlugin: Plugin<{ Link: EnrichedLink }> = {
       visitors: {
@@ -160,7 +184,9 @@ describe('pipeline()', () => {
     // Walk with enriched type — collect resolved flags
     const resolved: boolean[] = []
     result.walk({
-      Link: (node) => { resolved.push((node as EnrichedLink).resolved) },
+      Link: (node) => {
+        resolved.push((node as EnrichedLink).resolved)
+      },
     })
     expect(resolved).toEqual([true])
   })
@@ -169,8 +195,12 @@ describe('pipeline()', () => {
     const order: string[] = []
     const orderPlugin: Plugin = {
       visitors: {
-        Text: () => { order.push('Text') },
-        Paragraph: () => { order.push('Paragraph') },
+        Text: () => {
+          order.push('Text')
+        },
+        Paragraph: () => {
+          order.push('Paragraph')
+        },
       },
     }
     const enrichedParse = pipeline(parse, [orderPlugin])

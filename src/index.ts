@@ -21,21 +21,59 @@ export type { Visitors, Plugin, PluginDelta, Apply } from './transform/types.ts'
 // ─── Document types ───────────────────────────────────────────────────────────
 
 export type {
-  DiagnosticLevel, Diagnostic, AttributeValue, Attribute, AttrsParseResult,
+  DiagnosticLevel,
+  Diagnostic,
+  AttributeValue,
+  Attribute,
+  AttrsParseResult,
 } from './types/document/common.ts'
 
 export type {
-  Inline, InlineParseResult, LinkKind,
-  Text, Emphasis, Strong, Strikethrough, CodeInline, TextBreak,
-  Link, ImageInline, Span, MathInline, Variable, QuoteInline,
+  Inline,
+  InlineParseResult,
+  LinkKind,
+  Text,
+  Emphasis,
+  Strong,
+  Strikethrough,
+  CodeInline,
+  TextBreak,
+  Link,
+  ImageInline,
+  Span,
+  MathInline,
+  Variable,
+  QuoteInline,
 } from './types/document/inline.ts'
 
 export type {
-  Block, Document, Page, ParseResult,
-  ListItemLike, TableKind, ColumnAlign, FileGroup,
-  Section, Paragraph, ThematicBreak, CodeBlock, Meta, QuoteBlock,
-  List, ListItem, TaskItem, Table, Row, Cell, Column,
-  FileRef, ImageBlock, FileRefGroup, NamedBlock, RefDefinition, MathBlock,
+  Block,
+  Document,
+  Page,
+  ParseResult,
+  ListItemLike,
+  TableKind,
+  ColumnAlign,
+  FileGroup,
+  Section,
+  Paragraph,
+  ThematicBreak,
+  CodeBlock,
+  Meta,
+  QuoteBlock,
+  List,
+  ListItem,
+  TaskItem,
+  Table,
+  Row,
+  Cell,
+  Column,
+  FileRef,
+  ImageBlock,
+  FileRefGroup,
+  NamedBlock,
+  RefDefinition,
+  MathBlock,
 } from './types/document/blocks.ts'
 
 export type { NodeMap } from './types/document/node-map.ts'

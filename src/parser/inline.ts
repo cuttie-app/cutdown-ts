@@ -1,8 +1,20 @@
 import type {
-  Attribute, Diagnostic,
-  Inline, InlineParseResult,
-  Text, Emphasis, Strong, Strikethrough, CodeInline,
-  Link, ImageInline, Span, MathInline, Variable, QuoteInline, LinkKind,
+  Attribute,
+  Diagnostic,
+  Inline,
+  InlineParseResult,
+  Text,
+  Emphasis,
+  Strong,
+  Strikethrough,
+  CodeInline,
+  Link,
+  ImageInline,
+  Span,
+  MathInline,
+  Variable,
+  QuoteInline,
+  LinkKind,
 } from '../types/document'
 import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
@@ -10,8 +22,28 @@ import { isIdChar } from './utils.ts'
 // ─── Special characters per spec §4 ──────────────────────────────────────────
 
 export const SPECIAL_CHARS = new Set([
-  '=', '#', '*', '_', '~', '`', '$', '[', ']', '(', ')', '!',
-  '{', '}', ':', '-', '>', '/', '\\', '|', '"', "'",
+  '=',
+  '#',
+  '*',
+  '_',
+  '~',
+  '`',
+  '$',
+  '[',
+  ']',
+  '(',
+  ')',
+  '!',
+  '{',
+  '}',
+  ':',
+  '-',
+  '>',
+  '/',
+  '\\',
+  '|',
+  '"',
+  "'",
 ])
 
 // ─── Public parse helpers ─────────────────────────────────────────────────────
@@ -257,8 +289,10 @@ class InlineScanner {
       let count = 0
       let ci = 0
       while (ci <= rawInner.length - cd.length) {
-        if (rawInner.slice(ci, ci + cd.length) === cd) { count++; ci += cd.length }
-        else ci++
+        if (rawInner.slice(ci, ci + cd.length) === cd) {
+          count++
+          ci += cd.length
+        } else ci++
       }
       if (count % 2 !== 0 && this.chars.slice(this.pos).join('').includes(cd)) {
         this.diagnostics.push({

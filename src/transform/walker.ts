@@ -1,5 +1,31 @@
-import type { Document, Page, Block, Section, Paragraph, QuoteBlock, List, ListItem, TaskItem, Table, Row, Cell, FileRefGroup, ImageBlock, NamedBlock, RefDefinition } from '../types/document/blocks.ts'
-import type { Inline, Emphasis, Strong, Strikethrough, Link, ImageInline, Span, QuoteInline } from '../types/document/inline.ts'
+import type {
+  Document,
+  Page,
+  Block,
+  Section,
+  Paragraph,
+  QuoteBlock,
+  List,
+  ListItem,
+  TaskItem,
+  Table,
+  Row,
+  Cell,
+  FileRefGroup,
+  ImageBlock,
+  NamedBlock,
+  RefDefinition,
+} from '../types/document/blocks.ts'
+import type {
+  Inline,
+  Emphasis,
+  Strong,
+  Strikethrough,
+  Link,
+  ImageInline,
+  Span,
+  QuoteInline,
+} from '../types/document/inline.ts'
 import type { Visitors } from './types.ts'
 import type { NodeMap } from '../types/document/node-map.ts'
 
@@ -46,11 +72,16 @@ function visitInline(node: Inline, v: V): Inline | undefined {
       visitInlines((node as QuoteInline).children, v)
       return v.QuoteInline?.(node as QuoteInline) as Inline | undefined
     }
-    case 'Text':        return v.Text?.(node) as Inline | undefined
-    case 'CodeInline':  return v.CodeInline?.(node) as Inline | undefined
-    case 'TextBreak':   return v.TextBreak?.(node) as Inline | undefined
-    case 'MathInline':  return v.MathInline?.(node) as Inline | undefined
-    case 'Variable':    return v.Variable?.(node) as Inline | undefined
+    case 'Text':
+      return v.Text?.(node) as Inline | undefined
+    case 'CodeInline':
+      return v.CodeInline?.(node) as Inline | undefined
+    case 'TextBreak':
+      return v.TextBreak?.(node) as Inline | undefined
+    case 'MathInline':
+      return v.MathInline?.(node) as Inline | undefined
+    case 'Variable':
+      return v.Variable?.(node) as Inline | undefined
   }
 }
 
@@ -123,11 +154,16 @@ function visitBlock(node: Block, v: V): Block | undefined {
       visitInlines((node as ImageBlock).alt, v)
       return v.ImageBlock?.(node as ImageBlock) as Block | undefined
     }
-    case 'ThematicBreak': return v.ThematicBreak?.(node) as Block | undefined
-    case 'CodeBlock':     return v.CodeBlock?.(node) as Block | undefined
-    case 'Meta':          return v.Meta?.(node) as Block | undefined
-    case 'FileRef':       return v.FileRef?.(node) as Block | undefined
-    case 'MathBlock':     return v.MathBlock?.(node) as Block | undefined
+    case 'ThematicBreak':
+      return v.ThematicBreak?.(node) as Block | undefined
+    case 'CodeBlock':
+      return v.CodeBlock?.(node) as Block | undefined
+    case 'Meta':
+      return v.Meta?.(node) as Block | undefined
+    case 'FileRef':
+      return v.FileRef?.(node) as Block | undefined
+    case 'MathBlock':
+      return v.MathBlock?.(node) as Block | undefined
   }
 }
 
@@ -162,9 +198,20 @@ function visitRows(rows: Row[], v: V): void {
 
 function isBlock(node: Block | Inline): boolean {
   const blockTypes = new Set([
-    'Section', 'Paragraph', 'ThematicBreak', 'CodeBlock', 'Meta',
-    'QuoteBlock', 'List', 'Table', 'FileRef', 'ImageBlock', 'FileRefGroup',
-    'NamedBlock', 'RefDefinition', 'MathBlock',
+    'Section',
+    'Paragraph',
+    'ThematicBreak',
+    'CodeBlock',
+    'Meta',
+    'QuoteBlock',
+    'List',
+    'Table',
+    'FileRef',
+    'ImageBlock',
+    'FileRefGroup',
+    'NamedBlock',
+    'RefDefinition',
+    'MathBlock',
   ])
   return blockTypes.has((node as { type: string }).type)
 }
