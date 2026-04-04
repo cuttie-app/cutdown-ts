@@ -12,15 +12,15 @@
  *   diagnostics              — expected diagnostics (subset match, order-independent)
  */
 
-import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { parse } from '../../src/index.js'
+import { describe, it, expect } from 'vitest'
 import yaml from 'js-yaml'
+import { parse } from '../index.ts'
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
-const SPEC_TESTS_DIR = resolve('./../spec/tests')
+const SPEC_TESTS_DIR = resolve('./src/spec/tests')
 
 // ─── Test fixture type ────────────────────────────────────────────────────────
 
