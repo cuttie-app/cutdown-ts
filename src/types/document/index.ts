@@ -2,7 +2,7 @@ export type { DiagnosticLevel, Diagnostic, AttributeValue, Attribute, AttrsParse
 export type {
   Inline, InlineParseResult, LinkKind,
   Text, Emphasis, Strong, Strikethrough, CodeInline, TextBreak,
-  Link, ImageInline, Span, MathInline, Variable, Mention, QuoteInline,
+  Link, ImageInline, Span, MathInline, Variable, QuoteInline,
 } from './inline.ts'
 export type {
   Block, Document, Page, ParseResult,

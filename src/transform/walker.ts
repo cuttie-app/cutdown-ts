@@ -51,7 +51,6 @@ function visitInline(node: Inline, v: V): Inline | undefined {
     case 'TextBreak':   return v.TextBreak?.(node) as Inline | undefined
     case 'MathInline':  return v.MathInline?.(node) as Inline | undefined
     case 'Variable':    return v.Variable?.(node) as Inline | undefined
-    case 'Mention':     return v.Mention?.(node) as Inline | undefined
   }
 }
 

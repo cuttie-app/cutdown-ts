@@ -5,7 +5,7 @@ import type {
 } from './blocks.ts'
 import type {
   Text, Emphasis, Strong, Strikethrough, CodeInline, TextBreak,
-  Link, ImageInline, Span, MathInline, Variable, Mention, QuoteInline,
+  Link, ImageInline, Span, MathInline, Variable, QuoteInline,
 } from './inline.ts'
 
 /**
@@ -51,6 +51,5 @@ export type NodeMap = {
   Span: Span
   MathInline: MathInline
   Variable: Variable
-  Mention: Mention
   QuoteInline: QuoteInline
 }

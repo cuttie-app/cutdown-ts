@@ -1,5 +1,4 @@
-import type { AttrsParseResult } from '../types/document/common.ts'
-import type { ColumnAlign, FileGroup } from '../types/document/blocks.ts'
+import type { AttrsParseResult, ColumnAlign, FileGroup } from '../types/document'
 
 // ─── ID_LITERAL helpers ───────────────────────────────────────────────────────
 
@@ -53,7 +52,7 @@ export function detectFileGroup(src: string): FileGroup | undefined {
 // ─── Input normalisation ──────────────────────────────────────────────────────
 
 /**
- * Normalize raw input into an array of lines ready for block parsing.
+ * Normalize raw input into an array of lines that are ready for block parsing.
  *
  * Steps per spec §2:
  *  1. Strip UTF-8 BOM

@@ -2,7 +2,7 @@ import type { Attribute, Diagnostic } from '../types/document/common.ts'
 import type {
   Inline, InlineParseResult,
   Text, Emphasis, Strong, Strikethrough, CodeInline,
-  Link, ImageInline, Span, MathInline, Variable, Mention, QuoteInline, LinkKind,
+  Link, ImageInline, Span, MathInline, Variable, QuoteInline, LinkKind,
 } from '../types/document/inline.ts'
 import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
@@ -161,10 +161,6 @@ class InlineScanner {
 
     if (c === ':' && this.ch(1) === ':') {
       if (this.trySpan()) return
-    }
-
-    if (c === '@') {
-      if (this.tryMention()) return
     }
 
     if (c === '{') {
@@ -477,21 +473,6 @@ class InlineScanner {
     const node: Span = { type: 'Span', name, children: [] }
     if (attrs) node.attributes = attrs
     this.pushNode(node)
-    return true
-  }
-
-  private tryMention(): boolean {
-    const start = this.pos
-    this.pos++
-    const nameStart = this.pos
-    while (this.pos < this.chars.length && isIdChar(this.chars[this.pos] || '')) this.pos++
-    const value = this.chars.slice(nameStart, this.pos).join('')
-    if (value === '') {
-      this.pos = start + 1
-      this.pushText('@')
-      return true
-    }
-    this.pushNode({ type: 'Mention', value })
     return true
   }
 

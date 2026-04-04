@@ -1,4 +1,4 @@
-import type { Attribute } from './common.ts'
+import type { Attribute, Diagnostic } from './common.ts'
 
 // ─── Inline parse result ──────────────────────────────────────────────────────
 
@@ -6,7 +6,7 @@ export interface InlineParseResult {
   nodes: Inline[]
   /** Trailing attribute groups for scope-chain distribution (left-to-right order) */
   trailingAttrGroups: Attribute[][]
-  diagnostics: import('./common.ts').Diagnostic[]
+  diagnostics: Diagnostic[]
 }
 
 // ─── Inline union ─────────────────────────────────────────────────────────────
@@ -23,7 +23,6 @@ export type Inline =
   | Span
   | MathInline
   | Variable
-  | Mention
   | QuoteInline
 
 // ─── Inline nodes ─────────────────────────────────────────────────────────────
@@ -95,12 +94,6 @@ export interface MathInline {
 export interface Variable {
   type: 'Variable'
   key: string
-  attributes?: Attribute[]
-}
-
-export interface Mention {
-  type: 'Mention'
-  value: string
   attributes?: Attribute[]
 }
 

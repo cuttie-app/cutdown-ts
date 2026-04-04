@@ -27,7 +27,7 @@ export type {
 export type {
   Inline, InlineParseResult, LinkKind,
   Text, Emphasis, Strong, Strikethrough, CodeInline, TextBreak,
-  Link, ImageInline, Span, MathInline, Variable, Mention, QuoteInline,
+  Link, ImageInline, Span, MathInline, Variable, QuoteInline,
 } from './types/document/inline.ts'
 
 export type {

@@ -5,10 +5,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { parse } from '../parser/index.ts'
-import { pipeline } from '../transform/index.ts'
+import { parse } from '../parser'
+import { pipeline } from '../transform'
 import type { Plugin } from '../transform/types.ts'
-import type { Link, Text, Paragraph } from '../types/document/inline.ts'
+import type { Link, Text } from '../types/document'
 
 // ─── walk() ───────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,7 @@ describe('pipeline()', () => {
     const result = enrichedParse('hello world')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => { if(node)  texts.push(node.value) },
     })
     expect(texts).toEqual(['HELLO WORLD'])
   })
@@ -125,7 +125,7 @@ describe('pipeline()', () => {
     const result = enrichedParse('x')
     const texts: string[] = []
     result.walk({
-      Text: (node) => { texts.push(node.value) },
+      Text: (node) => { if(node) texts.push(node.value) },
     })
     expect(texts).toEqual(['xAB'])
   })

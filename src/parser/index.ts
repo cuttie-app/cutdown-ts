@@ -1,7 +1,7 @@
 import { normalize } from './utils.ts'
 import { BlockParser } from './block.ts'
-import { ASTResult } from '../transform/index.ts'
-import type { NodeMap } from '../types/document/node-map.ts'
+import { ASTResult } from '../transform'
+import type { NodeMap } from '../types/document'
 
 /**
  * Parse a Cutdown string into an AST.
