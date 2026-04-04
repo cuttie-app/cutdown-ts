@@ -21,8 +21,7 @@ import yaml from 'js-yaml';
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
 const SPEC_TESTS_DIR = resolve(
-  new URL('.', import.meta.url).pathname,
-  '../../cutdown-spec/tests',
+  './external/spec/tests',
 );
 
 // ─── Test fixture type ────────────────────────────────────────────────────────
