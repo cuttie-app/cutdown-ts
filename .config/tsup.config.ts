@@ -1,19 +1,13 @@
 import { defineConfig } from 'tsup'
 
 const cliShared = {
-  entry: { 'cutdown-parser': 'src/parser.ts' },
+  entry: { 'cutdown-parser': 'src/parser-cli.ts' },
   format: ['esm' as const],
   target: 'node18' as const,
   banner: { js: '#!/usr/bin/env node' },
 }
 
 export default defineConfig([
-  // CLI slim: dependencies stay external (npm installs them alongside)
-  {
-    ...cliShared,
-    outDir: 'dist/slim',
-    clean: true,
-  },
   // CLI bundled: all deps inlined, single self-contained file
   {
     ...cliShared,
