@@ -795,7 +795,26 @@ export class BlockParser {
       const stripped = line.trimStart()
       const lineCol = line.length - stripped.length
 
-      if (i > 0 && isListMarkerLine(stripped)) {
+      if (stripped.startsWith('>')) {
+        flushText()
+        const subLines: string[] = [stripped]
+        let j = i + 1
+        while (j < contentLines.length) {
+          const next = contentLines[j] || ''
+          const nextStripped = next.trimStart()
+          if (nextStripped.startsWith('>')) {
+            subLines.push(nextStripped)
+            j++
+          } else break
+        }
+        i = j - 1
+
+        const subParser = new BlockParser(subLines)
+        const nestedBlocks = subParser.parseBlocks()
+        this.diagnostics.push(...subParser.diagnostics)
+        result.push(...nestedBlocks)
+        trailingAttrGroups = []
+      } else if (i > 0 && isListMarkerLine(stripped)) {
         flushText()
         const subLines: string[] = [stripped]
         let j = i + 1
