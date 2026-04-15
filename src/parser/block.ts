@@ -296,7 +296,26 @@ export class BlockParser {
         this.pos++
         continue
       }
-      blocks.push(this.parseBlock())
+      const block = this.parseBlock()
+      blocks.push(block)
+
+      // For non-paragraph blocks (paragraphs already handle their own trailing {attrs}
+      // lines internally), collect any immediately following standalone {attrs} lines
+      // and attach them to this block.
+      if (block.type !== 'Paragraph' && block.type !== 'Spacer') {
+        const attrLines: string[] = []
+        while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
+          attrLines.push(this.advance())
+        }
+        if (attrLines.length > 0) {
+          const { trailingAttrGroups, diagnostics } = parseInlineText(attrLines.join('\n'))
+          this.diagnostics.push(...diagnostics)
+          const group = trailingAttrGroups[trailingAttrGroups.length - 1]
+          if (group && group.length > 0) {
+            ;(block as unknown as Record<string, unknown>)['attributes'] = group
+          }
+        }
+      }
     }
     return blocks
   }
@@ -607,18 +626,33 @@ export class BlockParser {
       const stripped = rest.startsWith(' ') ? rest.slice(1) : rest
 
       if (firstLine) {
+        // Only extract attrs when there is text content before the {attrs} token.
+        // A line that is *only* {attrs} (e.g. `> {.class}`) is kept as literal content
+        // so it does not silently consume the braces without attaching them anywhere.
         const { text, groups, diagnostics: attrDiags } = extractTrailingAttrGroups(stripped)
         this.diagnostics.push(...attrDiags)
-        if (groups.length > 0) {
-          distributeScopeChain(groups, [{ attributes: undefined }], this.diagnostics)
+        if (text.trim() !== '' && groups.length > 0) {
           const aa = groups[groups.length - 1]
-          attrs = aa && aa.length > 0 ? groups[groups.length - 1] : undefined
+          attrs = aa && aa.length > 0 ? aa : undefined
+          contentLines.push(text)
+        } else {
+          contentLines.push(stripped)
         }
-        contentLines.push(text)
         firstLine = false
       } else {
         contentLines.push(stripped)
       }
+    }
+
+    // A standalone {attrs} block as the *last* content line (still inside `>`)
+    // is treated as trailing attrs for the QuoteBlock itself, not for any child paragraph.
+    while (contentLines.length > 0) {
+      const last = contentLines[contentLines.length - 1]?.trim() ?? ''
+      if (!last.startsWith('{')) break
+      const r = parseAttrBlock(last)
+      this.diagnostics.push(...r.diagnostics)
+      if (r.attrs.length > 0) attrs = r.attrs
+      contentLines.pop()
     }
 
     const sub = new BlockParser(contentLines, true)

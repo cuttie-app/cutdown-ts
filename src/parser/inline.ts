@@ -513,13 +513,14 @@ class InlineScanner {
   }
 
   private tryInlineAttrs(): boolean {
+    const savedPos = this.pos
     const r = this.readAttrBlock()
     if (!r) return false
 
     const { attrs, diagnostics } = r
-    this.diagnostics.push(...diagnostics)
 
     if (attrs.length === 0) {
+      this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push([])
       return true
     }
@@ -529,6 +530,7 @@ class InlineScanner {
       lastNonText !== null &&
       !('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes)
     ) {
+      this.diagnostics.push(...diagnostics)
       ;(lastNonText as { attributes?: Attribute[] }).attributes = attrs
       if (this.nodes.length > 0) {
         const last = this.nodes[this.nodes.length - 1] || { type: '' }
@@ -538,8 +540,23 @@ class InlineScanner {
         }
       }
     } else if (lastNonText !== null) {
+      this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
     } else {
+      // No preceding non-text node. If there are also no nodes at all (i.e. {.attr} is
+      // the very first token in this inline span) and substantial content follows, treat
+      // the braces as literal text — they are leading, not trailing, and cannot be
+      // meaningfully attached to anything.
+      // When there IS preceding text (lastNonText===null but nodes non-empty), or when
+      // nothing follows, push to trailingAttrGroups as usual.
+      if (this.nodes.length === 0) {
+        const hasContentAfter = this.chars.slice(this.pos).some((ch) => ch !== '\n' && ch !== ' ')
+        if (hasContentAfter) {
+          this.pos = savedPos
+          return false
+        }
+      }
+      this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
     }
     return true
