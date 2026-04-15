@@ -185,13 +185,29 @@ const processListItemChildren = (children: (Block | Inline)[]): (Block | Inline)
   const blocks = children.filter(
     (c) => typeof c === 'object' && 'type' in c && isBlockType((c as Block).type)
   ) as Block[]
-  const inlines = children.filter((c) => !blocks.includes(c as Block))
 
-  if (blocks.length > 0) {
-    const processedBlocks = processBlocks(blocks)
-    return [...inlines, ...processedBlocks]
+  if (blocks.length === 0) return children
+
+  const processedBlocks = processBlocks(blocks)
+
+  // Pure block list (no inline siblings) — just return processed blocks
+  if (blocks.length === children.length) return processedBlocks
+
+  // Mixed inline + block children: preserve original order, substituting
+  // each original block with its processed counterpart in sequence.
+  // This handles the case where block elements (QuoteBlock, nested List) appear
+  // at any position relative to inline nodes.
+  if (processedBlocks.length === blocks.length) {
+    let blockIdx = 0
+    return children.map((child) =>
+      blocks.includes(child as Block) ? processedBlocks[blockIdx++]! : child
+    )
   }
-  return children
+
+  // Fallback: block count changed after processing (e.g. section nesting merged items).
+  // Put inlines first to avoid losing them.
+  const inlines = children.filter((c) => !blocks.includes(c as Block))
+  return [...inlines, ...processedBlocks]
 }
 
 const processBlocks = (blocks: Block[]): Block[] => {
