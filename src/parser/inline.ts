@@ -551,8 +551,10 @@ class InlineScanner {
     // Middle-of-inline attachment (§10.9): when non-attr content follows, {attrs}
     // attaches directly to the preceding inline element (e.g. ::span {#id} text).
     // When only more {…} blocks or nothing follows, it's a trailing scope-chain group.
-    if (!('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes) &&
-        this.hasNonAttrContentAfter()) {
+    if (
+      !('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes) &&
+      this.hasNonAttrContentAfter()
+    ) {
       this.diagnostics.push(...diagnostics)
       ;(lastNonText as { attributes?: Attribute[] }).attributes = attrs
       if (this.nodes.length > 0) {

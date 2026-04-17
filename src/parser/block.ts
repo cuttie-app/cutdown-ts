@@ -45,7 +45,7 @@ import {
  * slots[0] is Slot 1 (last {}), slots[1] is Slot 2, etc.
  * If a slot is an array (Inline[]), find the last non-Text node.
  */
-const distributeScopeChain = (groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void => {
+const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnostics: Diagnostic[]): void => {
   let slotIdx = 0
   for (let groupIdx = groups.length - 1; groupIdx >= 0; groupIdx--) {
     const group = groups[groupIdx] || []
@@ -198,9 +198,7 @@ const processListItemChildren = (children: (Block | Inline)[]): (Block | Inline)
   // at any position relative to inline nodes.
   if (processedBlocks.length === blocks.length) {
     let blockIdx = 0
-    return children.map((child) =>
-      blocks.includes(child as Block) ? processedBlocks[blockIdx++]! : child
-    )
+    return children.map((child) => (blocks.includes(child as Block) ? processedBlocks[blockIdx++]! : child))
   }
 
   // Fallback: block count changed after processing (e.g. section nesting merged items).
