@@ -74,6 +74,24 @@ export function mergeText(nodes: Inline[]): Inline[] {
   return result
 }
 
+/**
+ * §5.4: Distribute trailing attr groups from link text onto the link's children.
+ * Each group attaches to the last non-Text child (preceding inline element).
+ * Groups with no eligible target are silently dropped.
+ */
+function applyLinkTextAttrs(nodes: Inline[], groups: Attribute[][]): void {
+  for (const group of groups) {
+    if (group.length === 0) continue
+    for (let j = nodes.length - 1; j >= 0; j--) {
+      const n = nodes[j] as Record<string, unknown>
+      if (typeof n === 'object' && n['type'] !== 'Text') {
+        if (!n['attributes']) n['attributes'] = group
+        break
+      }
+    }
+  }
+}
+
 // ─── InlineScanner ────────────────────────────────────────────────────────────
 
 class InlineScanner {
@@ -402,6 +420,7 @@ class InlineScanner {
 
       const textResult = parseInlineText(textChars)
       this.diagnostics.push(...textResult.diagnostics)
+      applyLinkTextAttrs(textResult.nodes, textResult.trailingAttrGroups)
       const node: Link = {
         type: 'Link',
         kind: 'external',
@@ -444,6 +463,7 @@ class InlineScanner {
 
       const textResult = parseInlineText(textChars)
       this.diagnostics.push(...textResult.diagnostics)
+      applyLinkTextAttrs(textResult.nodes, textResult.trailingAttrGroups)
       const node: Link = {
         type: 'Link',
         kind,
@@ -496,6 +516,7 @@ class InlineScanner {
       this.pushText(':')
       return true
     }
+    // Read optional {attrs} — skip a single space if present (span attrs may be space-separated).
     let attrs: Attribute[] | undefined
     {
       let tempPos = this.pos
@@ -526,10 +547,24 @@ class InlineScanner {
     }
 
     const lastNonText = this.findLastNonTextNode()
-    if (
-      lastNonText !== null &&
-      !('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes)
-    ) {
+    if (lastNonText === null) {
+      if (this.nodes.length === 0) {
+        // Leading {…}: if non-attr content follows, emit as literal text.
+        if (this.hasNonAttrContentAfter()) {
+          this.pos = savedPos
+          return false
+        }
+      }
+      this.diagnostics.push(...diagnostics)
+      this.trailingAttrGroups.push(attrs)
+      return true
+    }
+
+    // Middle-of-inline attachment (§10.9): when non-attr content follows, {attrs}
+    // attaches directly to the preceding inline element (e.g. ::span {#id} text).
+    // When only more {…} blocks or nothing follows, it's a trailing scope-chain group.
+    if (!('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes) &&
+        this.hasNonAttrContentAfter()) {
       this.diagnostics.push(...diagnostics)
       ;(lastNonText as { attributes?: Attribute[] }).attributes = attrs
       if (this.nodes.length > 0) {
@@ -539,26 +574,23 @@ class InlineScanner {
           if ((last as Text).value === '') this.nodes.pop()
         }
       }
-    } else if (lastNonText !== null) {
-      this.diagnostics.push(...diagnostics)
-      this.trailingAttrGroups.push(attrs)
     } else {
-      // No preceding non-text node. If there are also no nodes at all (i.e. {.attr} is
-      // the very first token in this inline span) and substantial content follows, treat
-      // the braces as literal text — they are leading, not trailing, and cannot be
-      // meaningfully attached to anything.
-      // When there IS preceding text (lastNonText===null but nodes non-empty), or when
-      // nothing follows, push to trailingAttrGroups as usual.
-      if (this.nodes.length === 0) {
-        const hasContentAfter = this.chars.slice(this.pos).some((ch) => ch !== '\n' && ch !== ' ')
-        if (hasContentAfter) {
-          this.pos = savedPos
-          return false
-        }
-      }
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
     }
+    return true
+  }
+
+  /**
+   * Returns true if there is non-attr, non-whitespace content after the current position.
+   * A bare `{…}` block does NOT count as "real content" — only text, delimiters, etc. do.
+   */
+  private hasNonAttrContentAfter(): boolean {
+    let i = this.pos
+    while (i < this.chars.length && (this.chars[i] === ' ' || this.chars[i] === '\n')) i++
+    if (i >= this.chars.length) return false
+    // Another {…} attr block is not "real" content for attachment purposes
+    if (this.chars[i] === '{' && this.chars[i + 1] !== '{') return false
     return true
   }
 

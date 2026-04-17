@@ -71,9 +71,7 @@ const distributeScopeChain = (groups: Attribute[][], slots: unknown[], diagnosti
       }
     }
 
-    if (!claimed) {
-      diagnostics.push({ code: 'CDN-0011', level: 'warning' })
-    }
+    // Spec §5.2: excess front attrs with no slot are silently dropped (no diagnostic)
   }
 }
 
@@ -648,7 +646,9 @@ export class BlockParser {
     // is treated as trailing attrs for the QuoteBlock itself, not for any child paragraph.
     while (contentLines.length > 0) {
       const last = contentLines[contentLines.length - 1]?.trim() ?? ''
-      if (!last.startsWith('{')) break
+      // Only treat a line as a trailing-attr line if it consists entirely of one or more
+      // {…} blocks — no other text. "{.class} content" is content, not a trailing attr.
+      if (!/^\{[^}]*\}(\s*\{[^}]*\})*\s*$/.test(last)) break
       const r = parseAttrBlock(last)
       this.diagnostics.push(...r.diagnostics)
       if (r.attrs.length > 0) attrs = r.attrs
