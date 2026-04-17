@@ -83,9 +83,9 @@ function applyLinkTextAttrs(nodes: Inline[], groups: Attribute[][]): void {
   for (const group of groups) {
     if (group.length === 0) continue
     for (let j = nodes.length - 1; j >= 0; j--) {
-      const n = nodes[j] as Record<string, unknown>
-      if (typeof n === 'object' && n['type'] !== 'Text') {
-        if (!n['attributes']) n['attributes'] = group
+      const n = nodes[j] as unknown as Record<string, unknown>
+      if (n != null && typeof n === 'object' && n.type !== 'Text') {
+        if (!n.attributes) n.attributes = group
         break
       }
     }
@@ -516,19 +516,7 @@ class InlineScanner {
       this.pushText(':')
       return true
     }
-    // Read optional {attrs} — skip a single space if present (span attrs may be space-separated).
-    let attrs: Attribute[] | undefined
-    {
-      let tempPos = this.pos
-      while (tempPos < this.chars.length && this.chars[tempPos] === ' ') tempPos++
-      if (tempPos < this.chars.length && this.chars[tempPos] === '{' && this.chars[tempPos + 1] !== '{') {
-        this.pos = tempPos
-        const r = this.readAttrBlock()
-        if (r && r.attrs.length > 0) attrs = r.attrs
-      }
-    }
     const node: Span = { type: 'Span', name, children: [] }
-    if (attrs) node.attributes = attrs
     this.pushNode(node)
     return true
   }

@@ -46,28 +46,29 @@ import {
  * If a slot is an array (Inline[]), find the last non-Text node.
  */
 const distributeScopeChain = (groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void => {
-  for (let i = 0; i < groups.length; i++) {
-    const groupIdx = groups.length - 1 - i
+  let slotIdx = 0
+  for (let groupIdx = groups.length - 1; groupIdx >= 0; groupIdx--) {
     const group = groups[groupIdx] || []
-    let claimed = false
 
-    if (i < slots.length) {
-      const slot = slots[i]
-      if (slot) {
-        if (Array.isArray(slot)) {
-          for (let j = slot.length - 1; j >= 0; j--) {
-            const n = slot[j] as Record<string, unknown>
-            if (typeof n === 'object' && n['type'] !== 'Text') {
-              if (group.length > 0) n['attributes'] = group
-              claimed = true
-              break
-            }
+    while (slotIdx < slots.length) {
+      const slot = slots[slotIdx++]
+      if (!slot) continue
+
+      if (Array.isArray(slot)) {
+        let found = false
+        for (let j = slot.length - 1; j >= 0; j--) {
+          const n = slot[j] as Record<string, unknown>
+          if (typeof n === 'object' && n['type'] !== 'Text') {
+            if (group.length > 0) n['attributes'] = group
+            found = true
+            break
           }
-        } else if (typeof slot === 'object') {
-          const s = slot as Record<string, unknown>
-          if (group.length > 0) s['attributes'] = group
-          claimed = true
         }
+        if (found) break
+        // Array slot had no eligible node — fall through to next slot for this group
+      } else if (typeof slot === 'object') {
+        if (group.length > 0) (slot as Record<string, unknown>)['attributes'] = group
+        break
       }
     }
 
@@ -300,7 +301,7 @@ export class BlockParser {
       // For non-paragraph blocks (paragraphs already handle their own trailing {attrs}
       // lines internally), collect any immediately following standalone {attrs} lines
       // and attach them to this block.
-      if (block.type !== 'Paragraph' && block.type !== 'Spacer') {
+      if (block.type !== 'Paragraph') {
         const attrLines: string[] = []
         while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
           attrLines.push(this.advance())
@@ -1071,7 +1072,7 @@ export class BlockParser {
     }
 
     const node: Paragraph = { type: 'Paragraph', children: nodes }
-    distributeScopeChain(groups, [node, nodes], this.diagnostics)
+    distributeScopeChain(groups, [nodes, node], this.diagnostics)
     return node
   }
 }
