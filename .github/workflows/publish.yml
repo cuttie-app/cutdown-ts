@@ -4,11 +4,17 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment: NPM Publish
+    environment: CI
     permissions:
       contents: read
       id-token: write # needed for npm Trusted Publishing (OIDC)
@@ -20,16 +26,32 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+          always-auth: true
           registry-url: 'https://registry.npmjs.org'
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
 
-      - run: bun install
-      - run: bun check:format
-      - run: bun check:ts
-      - run: bun check:lint
-      - run: bun test
-      - run: bun run .bin/build.ts
-      - run: npm publish --provenance
+      - run: pnpm install --frozen-lockfile
+
+      - name: Checkout cutdown-spec at matching version
+        run: |
+          SPEC_VERSION=$(node -p "require('./package.json').version.split('-')[0]")
+          SPEC_TAG="v${SPEC_VERSION}"
+          git clone --depth 1 --branch "$SPEC_TAG" \
+            https://github.com/cuttie-app/cutdown-spec.git \
+            src/spec || { echo "ERROR: cutdown-spec tag $SPEC_TAG not found"; exit 1; }
+
+      - run: pnpm run check:format
+      - run: pnpm run check:ts
+      - run: pnpm run check:lint
+      - run: pnpm test
+
+      - run: pnpm run build
+      - run: npm publish
         env:
-          NPM_CONFIG_PROVENANCE: true
+          NPM_TOKEN: ${{ secrets.PUBLISH_KEY }}
+#      - run: npm publish --provenance
+#        env:
+#          NPM_CONFIG_PROVENANCE: true

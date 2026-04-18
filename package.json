@@ -42,7 +42,8 @@
     "build": "tsup --config .config/tsup.config.ts",
     "prepublishOnly": "pnpm run build",
     "test": "vitest --config .config/vitest.config.ts run",
-    "typecheck": "tsc --noEmit",
+    "check:ts": "tsc --noEmit",
+    "check:format": "oxfmt . -c .config/.oxfmtrc.json --check",
     "check:lint": "oxlint . -c .config/.oxlintrc.json",
     "format": "oxfmt . -c .config/.oxfmtrc.json --write"
   },
