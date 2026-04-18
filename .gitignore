@@ -3,3 +3,4 @@ dist/
 src/spec/
 
 coverage/
+benchmark/
