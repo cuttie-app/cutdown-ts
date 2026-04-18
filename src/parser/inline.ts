@@ -240,13 +240,12 @@ class InlineScanner {
       this.pushText('`')
       return true
     }
-    let attrs: Attribute[] | undefined
+    let attrs: Attribute[] = []
     if (this.ch() === '{' && this.ch(1) !== '{') {
       const r = this.readAttrBlock()
       if (r && r.attrs.length > 0) attrs = r.attrs
     }
-    const node: CodeInline = { type: 'CodeInline', value: content }
-    if (attrs) node.attributes = attrs
+    const node: CodeInline = { type: 'CodeInline', value: content, attributes: attrs }
     this.pushNode(node)
     return true
   }
@@ -269,7 +268,7 @@ class InlineScanner {
       this.pushText(delim[0] || '')
       return true
     }
-    const node: MathInline = { type: 'MathInline', formula: content }
+    const node: MathInline = { type: 'MathInline', formula: content, attributes: [] }
     this.pushNode(node)
     return true
   }
@@ -385,8 +384,7 @@ class InlineScanner {
 
     const altResult = parseInlineText(altChars)
     this.diagnostics.push(...altResult.diagnostics)
-    const node: ImageInline = { type: 'ImageInline', alt: altResult.nodes, src }
-    if (attrs) node.attributes = attrs
+    const node: ImageInline = { type: 'ImageInline', alt: altResult.nodes, src, attributes: attrs || [] }
     this.pushNode(node)
     return true
   }
@@ -425,8 +423,9 @@ class InlineScanner {
         type: 'Link',
         kind: 'external',
         href,
+        target: '',
         children: textResult.nodes,
-        ...(attrs ? { attributes: attrs } : {}),
+        attributes: attrs || [],
       }
       this.pushNode(node)
       return true
@@ -467,9 +466,10 @@ class InlineScanner {
       const node: Link = {
         type: 'Link',
         kind,
+        href: '',
         target: resolvedTarget,
         children: textResult.nodes,
-        ...(attrs ? { attributes: attrs } : {}),
+        attributes: attrs || [],
       }
       this.pushNode(node)
       return true
@@ -504,7 +504,7 @@ class InlineScanner {
       this.nodes.push({ type: 'Text', value: raw })
       return true
     }
-    const node: Variable = { type: 'Variable', key: trimmedKey }
+    const node: Variable = { type: 'Variable', key: trimmedKey, attributes: [] }
     this.pushNode(node)
     return true
   }
@@ -520,7 +520,7 @@ class InlineScanner {
       this.pushText(':')
       return true
     }
-    const node: Span = { type: 'Span', name, children: [] }
+    const node: Span = { type: 'Span', name, children: [], attributes: [] }
     this.pushNode(node)
     return true
   }

@@ -132,7 +132,7 @@ const deduplicateRefDefs = (blocks: Block[]) => {
 }
 
 const blockFileGroup = (block: Block): FileGroup | undefined => {
-  if (block.type === 'FileRef') return (block as FileRef).group ?? undefined
+  if (block.type === 'FileRef') return detectFileGroup((block as FileRef).path) ?? undefined
   if (block.type === 'ImageBlock') return 'image'
   return undefined
 }
@@ -160,7 +160,7 @@ const groupFileRefs = (blocks: Block[]) => {
       }
 
       if (children.length > 1 || children[0]?.type === 'FileRef') {
-        const groupNode: FileRefGroup = { type: 'FileRefGroup', group, children }
+        const groupNode: FileRefGroup = { type: 'FileRefGroup', group, children, attributes: [] }
         result.push(groupNode)
         const lastItem = children[children.length - 1]
         const groups = (lastItem as unknown as Record<string, unknown>)['attrGroups'] as Attribute[][] | undefined
@@ -408,7 +408,7 @@ export class BlockParser {
     }
 
     const raw = contentLines.join('\n')
-    const node: CodeBlock = { type: 'CodeBlock', language, raw }
+    const node: CodeBlock = { type: 'CodeBlock', language, raw, attributes: [] }
     if (attrs) node.attributes = attrs
     return node
   }
@@ -479,7 +479,7 @@ export class BlockParser {
     }
 
     const raw = contentLines.join('\n')
-    const node: MathBlock = { type: 'MathBlock', raw }
+    const node: MathBlock = { type: 'MathBlock', raw, attributes: [] }
     if (attrs) node.attributes = attrs
     return node
   }
@@ -507,8 +507,7 @@ export class BlockParser {
       }
     }
 
-    const node: ThematicBreak = { type: 'ThematicBreak' }
-    if (attrs) node.attributes = attrs
+    const node: ThematicBreak = { type: 'ThematicBreak', attributes: attrs || [] }
     return node
   }
 
@@ -534,7 +533,7 @@ export class BlockParser {
     const { nodes: heading, trailingAttrGroups, diagnostics } = parseInlineText(fullContent)
     this.diagnostics.push(...diagnostics)
 
-    const node: Section = { type: 'Section', level, heading, children: [] }
+    const node: Section = { type: 'Section', level, heading, attributes: [], children: [] }
     distributeScopeChain(trailingAttrGroups, [node, heading], this.diagnostics)
     return node
   }
@@ -576,6 +575,7 @@ export class BlockParser {
         const { nodes } = parseInlineText(cellText.trim())
         return { type: 'Cell' as const, children: nodes, row: rowIdx, column: colIdx }
       }),
+      attributes: [],
     }))
 
     let head: Row[] | undefined
@@ -590,8 +590,14 @@ export class BlockParser {
       )
     }
 
-    const table: Table = { type: 'Table', kind: isGfm ? 'gfm' : 'simple', body, columns }
-    if (head) table.head = head
+    const table: Table = {
+      type: 'Table',
+      kind: isGfm ? 'gfm' : 'simple',
+      head: head ?? [],
+      body,
+      columns,
+      attributes: [],
+    }
 
     const lastRowData = rowsData[rowsData.length - 1]
     let groups: Attribute[][] = lastRowData?.attrGroups ?? []
@@ -657,8 +663,7 @@ export class BlockParser {
     const sub = new BlockParser(contentLines, true)
     const children = sub.parseBlocks()
     this.diagnostics.push(...sub.diagnostics)
-    const node: QuoteBlock = { type: 'QuoteBlock', children }
-    if (attrs) node.attributes = attrs
+    const node: QuoteBlock = { type: 'QuoteBlock', children, attributes: attrs || [] }
     return node
   }
 
@@ -675,7 +680,7 @@ export class BlockParser {
     const firstStripped = this.peek().trimStart()
     const isOrderedFirst = /^\d+\. /.test(firstStripped)
     const isTaskFirst = firstStripped.startsWith('- [')
-    const list: List = { type: 'List', kind: 'bullet', loose: false, children: [] }
+    const list: List = { type: 'List', kind: 'bullet', start: null, loose: false, children: [], attributes: [] }
     let firstStart: number | undefined
 
     while (this.pos < this.lines.length) {
@@ -947,7 +952,7 @@ export class BlockParser {
     this.diagnostics.push(...diagnostics)
 
     const { nodes: alt } = parseInlineText(altText || '')
-    const node: ImageBlock = { type: 'ImageBlock', alt, src }
+    const node: ImageBlock = { type: 'ImageBlock', alt, src, attributes: [] }
 
     ;(node as unknown as Record<string, unknown>)['attrGroups'] = trailingAttrGroups
     distributeScopeChain(trailingAttrGroups, [node, alt], this.diagnostics)
@@ -997,8 +1002,7 @@ export class BlockParser {
 
     path = '/' + path
 
-    const group = detectFileGroup(path) ?? null
-    const node: FileRef = { type: 'FileRef', path, query, fragment, group }
+    const node: FileRef = { type: 'FileRef', path, query, fragment, attributes: [] }
 
     ;(node as unknown as Record<string, unknown>)['attrGroups'] = finalGroups
     distributeScopeChain(finalGroups, [node], this.diagnostics)
@@ -1041,7 +1045,7 @@ export class BlockParser {
     const { trailingAttrGroups, diagnostics: attrDiags } = parseInlineText(openerAttrLines.join('\n'))
     this.diagnostics.push(...attrDiags)
 
-    const node: NamedBlock = { type: 'NamedBlock', name, children: [] }
+    const node: NamedBlock = { type: 'NamedBlock', name, children: [], attributes: [] }
     distributeScopeChain(trailingAttrGroups, [node], this.diagnostics)
 
     const contentLines: string[] = []
@@ -1113,7 +1117,7 @@ export class BlockParser {
       groups = [...groups, ...pr.trailingAttrGroups]
     }
 
-    const node: Paragraph = { type: 'Paragraph', children: nodes }
+    const node: Paragraph = { type: 'Paragraph', children: nodes, attributes: [] }
     distributeScopeChain(groups, [nodes, node], this.diagnostics)
     return node
   }
