@@ -44,26 +44,26 @@ export interface Section {
   type: 'Section'
   level: number
   heading: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
   children: Block[]
 }
 
 export interface Paragraph {
   type: 'Paragraph'
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface ThematicBreak {
   type: 'ThematicBreak'
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface CodeBlock {
   type: 'CodeBlock'
   language: string
   raw: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Meta {
@@ -75,7 +75,7 @@ export interface Meta {
 export interface QuoteBlock {
   type: 'QuoteBlock'
   children: Block[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export type ListItemLike = ListItem | TaskItem
@@ -83,10 +83,10 @@ export type ListItemLike = ListItem | TaskItem
 export interface List {
   type: 'List'
   kind: 'bullet' | 'numbered' | 'checklist'
-  start?: number | null
+  start: number | null
   loose: boolean
   children: ListItemLike[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface ListItem {
@@ -99,7 +99,7 @@ export interface TaskItem {
   type: 'TaskItem'
   checked: boolean
   children: (Block | Inline)[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export type TableKind = 'simple' | 'gfm'
@@ -120,16 +120,16 @@ export interface Cell {
 export interface Row {
   type: 'Row'
   children: Cell[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Table {
   type: 'Table'
   kind: TableKind
-  head?: Row[]
+  head: Row[]
   body: Row[]
   columns: Column[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export type FileGroup = 'image' | 'video' | 'audio'
@@ -139,40 +139,39 @@ export interface FileRef {
   path: string
   query: string
   fragment: string
-  group: FileGroup | null
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface ImageBlock {
   type: 'ImageBlock'
   alt: Inline[]
   src: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface FileRefGroup {
   type: 'FileRefGroup'
   group: FileGroup
   children: (FileRef | ImageBlock)[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface NamedBlock {
   type: 'NamedBlock'
   name: string
-  attributes?: Attribute[]
   children: Block[]
+  attributes: Attribute[]
 }
 
 export interface RefDefinition {
   type: 'RefDefinition'
   id: string
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface MathBlock {
   type: 'MathBlock'
   raw: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }

@@ -12,10 +12,10 @@ export interface Diagnostic {
 
 export type AttributeValue = string | string[]
 
-export interface Attribute {
-  key: string
-  value: AttributeValue
-}
+export type Attribute =
+  | { key: 'id'; value: string }
+  | { key: 'class'; value: string[] }
+  | { key: string; value: string }
 
 export interface AttrsParseResult {
   attrs: Attribute[]

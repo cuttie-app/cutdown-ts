@@ -35,25 +35,25 @@ export interface Text {
 export interface Emphasis {
   type: 'Emphasis'
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Strong {
   type: 'Strong'
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Strikethrough {
   type: 'Strikethrough'
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface CodeInline {
   type: 'CodeInline'
   value: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface TextBreak {
@@ -65,41 +65,43 @@ export type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
 export interface Link {
   type: 'Link'
   kind: LinkKind
-  href?: string
-  target?: string
+  href: string
+  target: string
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface ImageInline {
   type: 'ImageInline'
   alt: Inline[]
   src: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Span {
   type: 'Span'
   name: string
-  attributes?: Attribute[]
   children: Inline[]
+  attributes: Attribute[]
 }
 
 export interface MathInline {
   type: 'MathInline'
   formula: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface Variable {
   type: 'Variable'
   key: string
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
+
+export type QuoteKind = 'double' | 'single'
 
 export interface QuoteInline {
   type: 'QuoteInline'
-  kind: 'double' | 'single'
+  kind: QuoteKind
   children: Inline[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
