@@ -48,6 +48,7 @@
     "format": "oxfmt . -c .config/.oxfmtrc.json --write"
   },
   "devDependencies": {
+    "@types/js-yaml": "4.0.9",
     "@types/node": "22.19.15",
     "js-yaml": "4.1.1",
     "oxfmt": "0.41.0",
