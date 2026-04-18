@@ -9,16 +9,18 @@
     "parser"
   ],
   "homepage": "https://github.com/cuttie-app/cutdown-ts",
-  "license": "MIT",
-  "author": {
-    "name": "Cuttie App",
-    "url": "https://github.com/cuttie-app"
+  "bugs": {
+    "url": "https://github.com/cuttie-app/cutdown-ts/issues"
   },
+  "license": "MIT",
+  "author": "Cuttie App (https://github.com/cuttie-app)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cuttie-app/cutdown-ts.git"
   },
-  "funding": "https://github.com/sponsors/cuttie-app",
+  "funding": {
+    "url": "https://github.com/sponsors/cuttie-app"
+  },
   "bin": {
     "cutdown-parser": "dist/cutdown-parser.js"
   },

@@ -49,9 +49,9 @@ jobs:
       - run: pnpm test
 
       - run: pnpm run build
-      - run: npm publish --tag next
-        env:
-          NPM_TOKEN: ${{ secrets.PUBLISH_KEY }}
-#      - run: npm publish --provenance
+#      - run: npm publish --tag next
 #        env:
-#          NPM_CONFIG_PROVENANCE: true
+#          NPM_TOKEN: ${{ secrets.PUBLISH_KEY }}
+      - run: npm publish --provenance
+        env:
+          NPM_CONFIG_PROVENANCE: true
