@@ -3,10 +3,10 @@
   "version": "0.3.6-rc.0",
   "description": "Cutdown markup language parser in TypeScript",
   "keywords": [
-    "parser",
+    "AST",
     "cutdown",
     "markdown",
-    "AST"
+    "parser"
   ],
   "homepage": "https://github.com/cuttie-app/cutdown-ts",
   "license": "MIT",
@@ -19,9 +19,6 @@
     "url": "git+https://github.com/cuttie-app/cutdown-ts.git"
   },
   "funding": "https://github.com/sponsors/cuttie-app",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "bin": {
     "cutdown-parser": "./dist/cutdown-parser.js"
   },
@@ -30,6 +27,9 @@
     "README.md",
     "LICENSE"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
