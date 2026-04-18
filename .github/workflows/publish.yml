@@ -1,0 +1,35 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: NPM Publish
+    permissions:
+      contents: read
+      id-token: write # needed for npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed to fetch all tags for version comparison
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install
+      - run: bun check:format
+      - run: bun check:ts
+      - run: bun check:lint
+      - run: bun test
+      - run: bun run .bin/build.ts
+      - run: npm publish --provenance
+        env:
+          NPM_CONFIG_PROVENANCE: true
