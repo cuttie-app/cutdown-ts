@@ -407,8 +407,8 @@ export class BlockParser {
       if (contentLines.length > 0 && contentLines[contentLines.length - 1] === '') contentLines.pop()
     }
 
-    const content = contentLines.join('\n')
-    const node: CodeBlock = { type: 'CodeBlock', language, content }
+    const raw = contentLines.join('\n')
+    const node: CodeBlock = { type: 'CodeBlock', language, raw }
     if (attrs) node.attributes = attrs
     return node
   }
@@ -478,8 +478,8 @@ export class BlockParser {
       if (contentLines.length > 0 && contentLines[contentLines.length - 1] === '') contentLines.pop()
     }
 
-    const formula = contentLines.join('\n')
-    const node: MathBlock = { type: 'MathBlock', formula }
+    const raw = contentLines.join('\n')
+    const node: MathBlock = { type: 'MathBlock', raw }
     if (attrs) node.attributes = attrs
     return node
   }
@@ -673,8 +673,9 @@ export class BlockParser {
 
   private parseListAtCol(col: number): List {
     const firstStripped = this.peek().trimStart()
-    const ordered = /^\d+\. /.test(firstStripped)
-    const list: List = { type: 'List', ordered, loose: false, children: [] }
+    const isOrderedFirst = /^\d+\. /.test(firstStripped)
+    const isTaskFirst = firstStripped.startsWith('- [')
+    const list: List = { type: 'List', kind: 'bullet', loose: false, children: [] }
     let firstStart: number | undefined
 
     while (this.pos < this.lines.length) {
@@ -700,6 +701,17 @@ export class BlockParser {
 
       if (!isListMarkerLine(stripped) || lineCol !== col) break
 
+      // Check if marker type changed
+      const isOrderedNow = /^\d+\. /.test(stripped)
+      const isTaskNow = stripped.startsWith('- [')
+
+      // If first item was ordered, break if current is not ordered
+      if (isOrderedFirst && !isOrderedNow) break
+      // If first item was task, break if current is not task
+      if (isTaskFirst && !isTaskNow) break
+      // If first item was bullet (not ordered, not task), break if current is ordered or task
+      if (!isOrderedFirst && !isTaskFirst && (isOrderedNow || isTaskNow)) break
+
       const result = this.parseListItemAtCol(col)
       list.children.push(result.item)
       if (result.absorbedBlank) list.loose = true
@@ -714,6 +726,23 @@ export class BlockParser {
           this.diagnostics
         )
       }
+    }
+
+    // Determine kind based on children types
+    if (list.children.length > 0 && list.children.every((child) => child.type === 'TaskItem')) {
+      list.kind = 'checklist'
+    } else if (isOrderedFirst) {
+      list.kind = 'numbered'
+    } else {
+      list.kind = 'bullet'
+    }
+
+    // Handle start field based on kind
+    if (list.kind === 'numbered') {
+      // Keep start as is for numbered lists (undefined or a number)
+    } else {
+      // Set start to null for non-numbered lists (bullet and checklist)
+      list.start = null
     }
 
     return list
@@ -733,7 +762,10 @@ export class BlockParser {
     let start: number | undefined
 
     const numericMatch = firstStripped.match(/^(\d+)\. /)
-    if (firstStripped.startsWith('- [ ] ')) {
+    if (firstStripped.startsWith('- [] ')) {
+      markerLen = 5
+      checked = false
+    } else if (firstStripped.startsWith('- [ ] ')) {
       markerLen = 6
       checked = false
     } else if (firstStripped.startsWith('- [x] ') || firstStripped.startsWith('- [X] ')) {
@@ -945,16 +977,28 @@ export class BlockParser {
       finalGroups = [...groups, ...trailingAttrGroups]
     }
 
-    let fragment: string | undefined
-    const hashIdx = src.indexOf('#')
-    if (hashIdx >= 0) {
-      fragment = src.slice(hashIdx + 1)
-      src = src.slice(0, hashIdx)
-    }
-    src = '/' + src
+    let fragment = ''
+    let query = ''
+    let path = src
 
-    const group = detectFileGroup(src) ?? null
-    const node: FileRef = { type: 'FileRef', src, fragment: fragment ?? null, group }
+    // Extract fragment (after #)
+    const hashIdx = path.indexOf('#')
+    if (hashIdx >= 0) {
+      fragment = path.slice(hashIdx + 1)
+      path = path.slice(0, hashIdx)
+    }
+
+    // Extract query (after ?)
+    const queryIdx = path.indexOf('?')
+    if (queryIdx >= 0) {
+      query = path.slice(queryIdx)
+      // path keeps the query string in it
+    }
+
+    path = '/' + path
+
+    const group = detectFileGroup(path) ?? null
+    const node: FileRef = { type: 'FileRef', path, query, fragment, group }
 
     ;(node as unknown as Record<string, unknown>)['attrGroups'] = finalGroups
     distributeScopeChain(finalGroups, [node], this.diagnostics)

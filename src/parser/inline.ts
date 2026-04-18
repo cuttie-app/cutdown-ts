@@ -497,6 +497,10 @@ class InlineScanner {
     if (!closed || trimmedKey === '' || !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
       const raw = this.chars.slice(start, this.pos).join('')
       if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
+      // Emit CDN-0015 only if closed and key has non-ID_LITERAL characters (not for empty key)
+      if (closed && trimmedKey !== '' && !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
+        this.diagnostics.push({ code: 'CDN-0015', level: 'warning' })
+      }
       this.nodes.push({ type: 'Text', value: raw })
       return true
     }

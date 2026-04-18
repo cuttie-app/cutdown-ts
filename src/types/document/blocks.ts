@@ -62,7 +62,7 @@ export interface ThematicBreak {
 export interface CodeBlock {
   type: 'CodeBlock'
   language: string
-  content: string
+  raw: string
   attributes?: Attribute[]
 }
 
@@ -82,8 +82,8 @@ export type ListItemLike = ListItem | TaskItem
 
 export interface List {
   type: 'List'
-  ordered: boolean
-  start?: number
+  kind: 'bullet' | 'numbered' | 'checklist'
+  start?: number | null
   loose: boolean
   children: ListItemLike[]
   attributes?: Attribute[]
@@ -136,8 +136,9 @@ export type FileGroup = 'image' | 'video' | 'audio'
 
 export interface FileRef {
   type: 'FileRef'
-  src: string
-  fragment: string | null
+  path: string
+  query: string
+  fragment: string
   group: FileGroup | null
   attributes?: Attribute[]
 }
@@ -172,6 +173,6 @@ export interface RefDefinition {
 
 export interface MathBlock {
   type: 'MathBlock'
-  formula: string
+  raw: string
   attributes?: Attribute[]
 }
