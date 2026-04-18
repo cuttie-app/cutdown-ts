@@ -19,37 +19,34 @@
     "url": "git+https://github.com/cuttie-app/cutdown-ts.git"
   },
   "funding": "https://github.com/sponsors/cuttie-app",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "cutdown-parser": "./dist/cutdown-parser.js"
   },
   "files": [
-    "./dist",
-    "./src"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "exports": {
-    "./package.json": "./package.json",
     ".": {
-      "default": "./build/index.js",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
     "build": "tsup --config .config/tsup.config.ts",
+    "prepublishOnly": "pnpm run build",
+    "test": "vitest --config .config/vitest.config.ts run",
+    "typecheck": "tsc --noEmit",
     "check:lint": "oxlint . -c .config/.oxlintrc.json",
-    "check:format": "oxfmt . -c .config/.oxfmtrc.json --check",
-    "check:ts": "tsc --noEmit",
-    "format": "oxfmt . -c .config/.oxfmtrc.json --write",
-    "test": "vitest --config .config/vitest.config.ts run"
+    "format": "oxfmt . -c .config/.oxfmtrc.json --write"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.12",
-    "@types/js-yaml": "4.0.9",
     "@types/node": "22.19.15",
     "js-yaml": "4.1.1",
     "oxfmt": "0.41.0",
@@ -58,5 +55,5 @@
     "typescript": "5.9.3",
     "vitest": "3.2.4"
   },
-  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017"
+  "packageManager": "pnpm@10.30.3"
 }
