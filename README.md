@@ -4,7 +4,7 @@ TypeScript parser for the Cutdown markup language.
 
 ## What is Cutdown?
 
-Cutdown is a markup language derived from Markdown that makes one radical trade: naturalness for predictability. Every construct is locally deterministic — block classification from the first line alone, inline parsing left-to-right with no backtracking, no global document state affecting any parse decision. Doubled delimiters (\*\*bold\*\*, \`\`code\`\`, \~\~strike\~\~) replace CommonMark's 17-rule emphasis algorithm entirely: a single * is always literal text, a doubled \*\* always opens a span, and the rule holds everywhere  without flanking logic or context sensitivity.
+Cutdown is a markup language derived from Markdown that makes one radical trade: naturalness for predictability. Every construct is locally deterministic — block classification from the first line alone, inline parsing left-to-right with no backtracking, no global document state affecting any parse decision. Doubled delimiters (\*\*bold\*\*, \`\`code\`\`, \~\~strike\~\~) replace CommonMark's 17-rule emphasis algorithm entirely: a single \* is always literal text, a doubled \*\* always opens a span, and the rule holds everywhere without flanking logic or context sensitivity.
 
 Octothorpe `#` becomes a first-class comment marker — stripping from output like YAML and most programming languages — while equal sign `=` takes headings, readable and reachable on every keyboard layout. Angle brackets carry no special meaning, so the HTML injection surface simply doesn't exist. Block elements cannot interrupt a paragraph, making hard-wrapped prose safe.
 
@@ -23,17 +23,19 @@ pnpm add cutdown-parser
 ## Usage
 
 ```typescript
-import { parse } from 'cutdown-parser';
+import { parse } from 'cutdown-parser'
 
 const input = `
 == Article Heading
 
-That's how we start paragraph.`;
+That's how we start paragraph.`
 
-const ast = parse(input);
+const ast = parse(input)
 //     ^ ASTResult<NodeMap>
 ```
+
 `ast -> JSON -> YAML`:
+
 ```yaml
 ast:
   type: Document
@@ -65,37 +67,69 @@ Edge cases and acceptance criteria are defined in the spec's test suite: [Cutdow
 ## API Reference
 
 ```ts
-import {
-  parse,
-  pipeline,
-  ASTResult,
-} from 'cutdown-parser'
+import { parse, pipeline, ASTResult } from 'cutdown-parser'
 
 import type {
   // Parse output
-  ParseResult, Document, Page,
+  ParseResult,
+  Document,
+  Page,
 
   // Block segments
-  Block, Section, Paragraph, ThematicBreak,
-  CodeBlock, QuoteBlock,
-  List, Table, ColumnAlign,
-  FileRef, FileRefGroup, ImageBlock, FileGroup,
-  NamedBlock, MathBlock,
+  Block,
+  Section,
+  Paragraph,
+  ThematicBreak,
+  CodeBlock,
+  QuoteBlock,
+  List,
+  Table,
+  ColumnAlign,
+  FileRef,
+  FileRefGroup,
+  ImageBlock,
+  FileGroup,
+  NamedBlock,
+  MathBlock,
 
   // Inline segments
-  Inline, Text, Emphasis, Strong, Strikethrough,
-  CodeInline, TextBreak, Link, LinkKind,
-  ImageInline, Span, MathInline, QuoteInline,
-  
+  Inline,
+  Text,
+  Emphasis,
+  Strong,
+  Strikethrough,
+  CodeInline,
+  TextBreak,
+  Link,
+  LinkKind,
+  ImageInline,
+  Span,
+  MathInline,
+  QuoteInline,
+
   // Special segments
-  Meta, RefDefinition, ListItem, TaskItem, Column, Row, Cell, Variable,
+  Meta,
+  RefDefinition,
+  ListItem,
+  TaskItem,
+  Column,
+  Row,
+  Cell,
+  Variable,
 
   // Attributes & diagnostics
-  Attribute, AttributeValue, AttrsParseResult,
-  Diagnostic, DiagnosticLevel,
+  Attribute,
+  AttributeValue,
+  AttrsParseResult,
+  Diagnostic,
+  DiagnosticLevel,
 
   // Pipeline
-  NodeMap, Visitors, Plugin, PluginDelta, Apply,
+  NodeMap,
+  Visitors,
+  Plugin,
+  PluginDelta,
+  Apply,
 } from 'cutdown-parser'
 ```
 
@@ -120,11 +154,11 @@ result.walk({ ... })  // typed exit-visitor traversal
 
 Returned by `parse()` and `pipeline()(...)`. Holds the document tree and any diagnostics emitted during parsing.
 
-| Property / Method | Type | Description |
-|---|---|---|
-| `.ast` | `Document` | Root node of the parsed document |
-| `.diagnostics` | `Diagnostic[]` | Warnings and errors (CDN codes) |
-| `.walk(visitors)` | `void` | Exit-only traversal; visitor returns a replacement node or `void` |
+| Property / Method | Type           | Description                                                       |
+| ----------------- | -------------- | ----------------------------------------------------------------- |
+| `.ast`            | `Document`     | Root node of the parsed document                                  |
+| `.diagnostics`    | `Diagnostic[]` | Warnings and errors (CDN codes)                                   |
+| `.walk(visitors)` | `void`         | Exit-only traversal; visitor returns a replacement node or `void` |
 
 `walk()` is typed to `TMap` — after `pipeline()` folds in plugins, visitor arguments narrow to the enriched node shapes the plugins declared.
 
@@ -140,7 +174,9 @@ const result = enrichedParse('Hello @world')
 //     ^ ASTResult<Apply<NodeMap, [linkPlugin.delta, mentionPlugin.delta]>>
 
 result.walk({
-  Link: (node) => { /* node is EnrichedLink if plugin declared it */ },
+  Link: (node) => {
+    /* node is EnrichedLink if plugin declared it */
+  },
 })
 ```
 
@@ -150,67 +186,89 @@ result.walk({
 
 #### Document structure
 
-| Type | Key fields |
-|---|---|
-| `Document` | `children: Page[]` |
-| `Page` | `meta: Meta \| null`, `children: Block[]` |
+| Type       | Key fields                                |
+| ---------- | ----------------------------------------- |
+| `Document` | `children: Page[]`                        |
+| `Page`     | `meta: Meta \| null`, `children: Block[]` |
 
 #### Block nodes
 
-| Type | Key fields |
-|---|---|
-| `Section` | `level: number`, `heading: Inline[]`, `children: Block[]`, `attributes` |
-| `Paragraph` | `children: Inline[]`, `attributes` |
-| `ThematicBreak` | `attributes` |
-| `CodeBlock` | `language: string`, `raw: string`, `attributes` |
-| `Meta` | `format: string`, `raw: string` |
-| `QuoteBlock` | `children: Block[]`, `attributes` |
-| `List` | `kind: 'bullet' \| 'numbered' \| 'checklist'`, `start: number \| null`, `loose: boolean`, `children: ListItemLike[]`, `attributes` |
-| `ListItem` | `children: (Block \| Inline)[]`, `attributes?` |
-| `TaskItem` | `checked: boolean`, `children: (Block \| Inline)[]`, `attributes` |
-| `Table` | `kind: TableKind`, `head: Row[]`, `body: Row[]`, `columns: Column[]`, `attributes` |
-| `Row` | `children: Cell[]`, `attributes` |
-| `Cell` | `row: number`, `column: number`, `children: Inline[]` |
-| `Column` | `align: ColumnAlign` |
-| `FileRef` | `path: string`, `query: string`, `fragment: string`, `attributes` |
-| `ImageBlock` | `alt: Inline[]`, `src: string`, `attributes` |
-| `FileRefGroup` | `group: FileGroup`, `children: (FileRef \| ImageBlock)[]`, `attributes` |
-| `NamedBlock` | `name: string`, `children: Block[]`, `attributes` |
-| `RefDefinition` | `id: string`, `children: Inline[]`, `attributes` |
-| `MathBlock` | `raw: string`, `attributes` |
+| Type            | Key fields                                                                                                                         |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `Section`       | `level: number`, `heading: Inline[]`, `children: Block[]`, `attributes`                                                            |
+| `Paragraph`     | `children: Inline[]`, `attributes`                                                                                                 |
+| `ThematicBreak` | `attributes`                                                                                                                       |
+| `CodeBlock`     | `language: string`, `raw: string`, `attributes`                                                                                    |
+| `Meta`          | `format: string`, `raw: string`                                                                                                    |
+| `QuoteBlock`    | `children: Block[]`, `attributes`                                                                                                  |
+| `List`          | `kind: 'bullet' \| 'numbered' \| 'checklist'`, `start: number \| null`, `loose: boolean`, `children: ListItemLike[]`, `attributes` |
+| `ListItem`      | `children: (Block \| Inline)[]`, `attributes?`                                                                                     |
+| `TaskItem`      | `checked: boolean`, `children: (Block \| Inline)[]`, `attributes`                                                                  |
+| `Table`         | `kind: TableKind`, `head: Row[]`, `body: Row[]`, `columns: Column[]`, `attributes`                                                 |
+| `Row`           | `children: Cell[]`, `attributes`                                                                                                   |
+| `Cell`          | `row: number`, `column: number`, `children: Inline[]`                                                                              |
+| `Column`        | `align: ColumnAlign`                                                                                                               |
+| `FileRef`       | `path: string`, `query: string`, `fragment: string`, `attributes`                                                                  |
+| `ImageBlock`    | `alt: Inline[]`, `src: string`, `attributes`                                                                                       |
+| `FileRefGroup`  | `group: FileGroup`, `children: (FileRef \| ImageBlock)[]`, `attributes`                                                            |
+| `NamedBlock`    | `name: string`, `children: Block[]`, `attributes`                                                                                  |
+| `RefDefinition` | `id: string`, `children: Inline[]`, `attributes`                                                                                   |
+| `MathBlock`     | `raw: string`, `attributes`                                                                                                        |
 
 #### Inline nodes
 
-| Type | Key fields |
-|---|---|
-| `Text` | `value: string` |
-| `Emphasis` | `children: Inline[]`, `attributes` |
-| `Strong` | `children: Inline[]`, `attributes` |
-| `Strikethrough` | `children: Inline[]`, `attributes` |
-| `CodeInline` | `value: string`, `attributes` |
-| `TextBreak` | _(no fields)_ |
-| `Link` | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes` |
-| `ImageInline` | `alt: Inline[]`, `src: string`, `attributes` |
-| `Span` | `name: string`, `children: Inline[]`, `attributes` |
-| `MathInline` | `formula: string`, `attributes` |
-| `Variable` | `key: string`, `attributes` |
-| `QuoteInline` | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes` |
+| Type            | Key fields                                                                             |
+| --------------- | -------------------------------------------------------------------------------------- |
+| `Text`          | `value: string`                                                                        |
+| `Emphasis`      | `children: Inline[]`, `attributes`                                                     |
+| `Strong`        | `children: Inline[]`, `attributes`                                                     |
+| `Strikethrough` | `children: Inline[]`, `attributes`                                                     |
+| `CodeInline`    | `value: string`, `attributes`                                                          |
+| `TextBreak`     | _(no fields)_                                                                          |
+| `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes` |
+| `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                           |
+| `Span`          | `name: string`, `children: Inline[]`, `attributes`                                     |
+| `MathInline`    | `formula: string`, `attributes`                                                        |
+| `Variable`      | `key: string`, `attributes`                                                            |
+| `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                       |
 
 #### Discriminant unions
 
 ```ts
-type Block  = Section | Paragraph | ThematicBreak | CodeBlock | Meta
-            | QuoteBlock | List | Table | FileRef | ImageBlock
-            | FileRefGroup | NamedBlock | RefDefinition | MathBlock
+type Block =
+  | Section
+  | Paragraph
+  | ThematicBreak
+  | CodeBlock
+  | Meta
+  | QuoteBlock
+  | List
+  | Table
+  | FileRef
+  | ImageBlock
+  | FileRefGroup
+  | NamedBlock
+  | RefDefinition
+  | MathBlock
 
-type Inline = Text | Emphasis | Strong | Strikethrough | CodeInline
-            | TextBreak | Link | ImageInline | Span | MathInline
-            | Variable | QuoteInline
+type Inline =
+  | Text
+  | Emphasis
+  | Strong
+  | Strikethrough
+  | CodeInline
+  | TextBreak
+  | Link
+  | ImageInline
+  | Span
+  | MathInline
+  | Variable
+  | QuoteInline
 
-type LinkKind    = 'external' | 'page' | 'tag' | 'ref' | 'cite'
-type TableKind   = 'simple' | 'gfm'
+type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
+type TableKind = 'simple' | 'gfm'
 type ColumnAlign = 'left' | 'right' | 'center' | 'comma' | 'decimal'
-type FileGroup   = 'image' | 'video' | 'audio'
+type FileGroup = 'image' | 'video' | 'audio'
 ```
 
 In contrast to CommonMark's 3-level node hierarchy (Block / Container / Inline), Cutdown has a flat registry of 31 distinct node types. Even `Block` and `Inline` doesn't cover all segments. `Meta`,`RefDefinition`,`ListItem`,`TaskItem`,`Column`,`Row`,`Cell`,`Variable` are all special segments. Each segment has a `type` field that discriminates its shape, and visitors in plugins can narrow on that type for precise transformations.
@@ -223,9 +281,9 @@ Every node that carries `attributes: Attribute[]` uses this shape:
 
 ```ts
 type Attribute =
-  | { key: 'id';    value: string }    // {#my-id}
-  | { key: 'class'; value: string[] }  // {.foo .bar}
-  | { key: string;  value: string }    // {key=value} or bare {flag}
+  | { key: 'id'; value: string } // {#my-id}
+  | { key: 'class'; value: string[] } // {.foo .bar}
+  | { key: string; value: string } // {key=value} or bare {flag}
 ```
 
 ---
@@ -234,7 +292,7 @@ type Attribute =
 
 ```ts
 interface Diagnostic {
-  code: string          // CDN-XXXX code from the spec
+  code: string // CDN-XXXX code from the spec
   level: 'warning' | 'error'
   message?: string
 }
@@ -250,7 +308,7 @@ As for now Spec describes apostates that emits diagnostics with level=`warning` 
 
 ```ts
 interface Plugin<TDelta extends PluginDelta = PluginDelta> {
-  readonly delta?: TDelta     // type-only: declares which node types are enriched
+  readonly delta?: TDelta // type-only: declares which node types are enriched
   readonly visitors: Visitors<NodeMap>
 }
 
