@@ -24,6 +24,7 @@ export type Inline =
   | MathInline
   | Variable
   | QuoteInline
+  | Spoiler
 
 // ─── Inline nodes ─────────────────────────────────────────────────────────────
 
@@ -102,6 +103,12 @@ export type QuoteKind = 'double' | 'single'
 export interface QuoteInline {
   type: 'QuoteInline'
   kind: QuoteKind
+  children: Inline[]
+  attributes: Attribute[]
+}
+
+export interface Spoiler {
+  type: 'Spoiler'
   children: Inline[]
   attributes: Attribute[]
 }

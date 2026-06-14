@@ -37,6 +37,7 @@ export type Block =
   | NamedBlock
   | RefDefinition
   | MathBlock
+  | SpoilerBlock
 
 // ─── Block nodes ──────────────────────────────────────────────────────────────
 
@@ -173,5 +174,11 @@ export interface RefDefinition {
 export interface MathBlock {
   type: 'MathBlock'
   raw: string
+  attributes: Attribute[]
+}
+
+export interface SpoilerBlock {
+  type: 'SpoilerBlock'
+  children: Block[]
   attributes: Attribute[]
 }

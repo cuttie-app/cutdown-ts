@@ -14,6 +14,7 @@ import type {
   MathInline,
   Variable,
   QuoteInline,
+  Spoiler,
   LinkKind,
 } from '../types/document'
 import { parseAttrBlock } from './attrs.ts'
@@ -44,6 +45,7 @@ export const SPECIAL_CHARS = new Set([
   '|',
   '"',
   "'",
+  '^',
 ])
 
 // ─── Public parse helpers ─────────────────────────────────────────────────────
@@ -189,6 +191,10 @@ class InlineScanner {
       if (this.tryDelimited('~~', 'Strikethrough')) return
     }
 
+    if (c === '^' && this.ch(1) === '^') {
+      if (this.tryDelimited('^^', 'Spoiler')) return
+    }
+
     if (c === '"' && this.ch(1) === '"') {
       if (this.tryDelimited('""', 'QuoteDouble')) return
     }
@@ -301,7 +307,7 @@ class InlineScanner {
     const children = innerResult.nodes
 
     // CDN-0014: warn on crossed inline boundaries
-    const otherDelims = ['**', '__', '~~', '""', "''"].filter((d) => d !== delim)
+    const otherDelims = ['**', '__', '~~', '^^', '""', "''"].filter((d) => d !== delim)
     for (const cd of otherDelims) {
       let count = 0
       let ci = 0
@@ -345,6 +351,9 @@ class InlineScanner {
         break
       case 'Strikethrough':
         node = { type: 'Strikethrough', children, ...(attrs ? { attributes: attrs } : {}) } as Strikethrough
+        break
+      case 'Spoiler':
+        node = { type: 'Spoiler', children, ...(attrs ? { attributes: attrs } : {}) } as Spoiler
         break
       case 'QuoteDouble':
         node = { type: 'QuoteInline', kind: 'double', children, ...(attrs ? { attributes: attrs } : {}) } as QuoteInline

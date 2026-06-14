@@ -22,6 +22,7 @@ import type {
   RefDefinition,
   Row,
   Section,
+  SpoilerBlock,
   Table,
   TaskItem,
   ThematicBreak,
@@ -96,6 +97,7 @@ const isBlockType = (type: string): boolean => {
     'NamedBlock',
     'RefDefinition',
     'MathBlock',
+    'SpoilerBlock',
     'Spacer',
   ].includes(type)
 }
@@ -214,7 +216,12 @@ const processBlocks = (blocks: Block[]): Block[] => {
   result = result.filter((b) => (b as unknown as Record<string, unknown>)['type'] !== 'Spacer')
 
   for (const block of result) {
-    if (block.type === 'Section' || block.type === 'QuoteBlock' || block.type === 'NamedBlock') {
+    if (
+      block.type === 'Section' ||
+      block.type === 'QuoteBlock' ||
+      block.type === 'NamedBlock' ||
+      block.type === 'SpoilerBlock'
+    ) {
       ;(block as unknown as Record<string, unknown>)['children'] = processBlocks(
         (block as unknown as Record<string, Block[]>)['children'] as Block[]
       )
@@ -339,6 +346,10 @@ export class BlockParser {
     if (line.startsWith('```')) return this.parseCodeBlock()
     if (line.startsWith('~~~')) return this.parseMetaBlock()
     if (line.startsWith('$$$')) return this.parseMathBlock()
+    if (line.startsWith('^^^')) {
+      const rest = line.replace(/^\^+/, '').trim()
+      if (rest === '' || rest.startsWith('{')) return this.parseSpoilerBlock()
+    }
     if (line.startsWith('---')) return this.parseThematicBreak()
     if (line.startsWith('|')) return this.parseTable()
     if (line.startsWith('>')) return this.parseQuoteBlock()
@@ -1079,6 +1090,53 @@ export class BlockParser {
       }
     }
     if (!closed) this.diagnostics.push({ code: 'CDN-0004', level: 'warning' })
+
+    const columns = contentLines.find((l) => l.trim() !== '')?.match(/^( *)/)?.[1]
+    const baseIndent = columns ? columns.length : 0
+    const stripped = contentLines.map((l) => (l.length >= baseIndent ? l.slice(baseIndent) : l.trimStart()))
+
+    const sub = new BlockParser(stripped, true)
+    node.children = sub.parseBlocks()
+    this.diagnostics.push(...sub.diagnostics)
+
+    return node
+  }
+
+  // ── SpoilerBlock ──────────────────────────────────────────────────────────
+
+  /**
+   * `^^^` opens a SpoilerBlock with parsed-block content. SpoilerBlocks do not nest:
+   * the first `^^^` line encountered after the opener always closes the block. Wrap
+   * inner content in `:::spoiler` NamedBlock if a tiered reveal is needed.
+   */
+  private parseSpoilerBlock() {
+    const openLine = this.advance().trimStart()
+    const afterFence = openLine.replace(/^\^+/, '').trim()
+
+    const openerAttrLines: string[] = [afterFence]
+    while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
+      openerAttrLines.push(this.advance())
+    }
+
+    const { trailingAttrGroups, diagnostics: attrDiags } = parseInlineText(openerAttrLines.join('\n'))
+    this.diagnostics.push(...attrDiags)
+
+    const node: SpoilerBlock = { type: 'SpoilerBlock', children: [], attributes: [] }
+    distributeScopeChain(trailingAttrGroups, [node], this.diagnostics)
+
+    const contentLines: string[] = []
+    let closed = false
+    while (this.pos < this.lines.length) {
+      const l = this.lines[this.pos] || ''
+      if (l.trim().startsWith('^^^')) {
+        this.pos++
+        closed = true
+        break
+      }
+      contentLines.push(l)
+      this.pos++
+    }
+    if (!closed) this.diagnostics.push({ code: 'CDN-0005', level: 'warning' })
 
     const columns = contentLines.find((l) => l.trim() !== '')?.match(/^( *)/)?.[1]
     const baseIndent = columns ? columns.length : 0

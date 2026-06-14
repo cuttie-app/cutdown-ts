@@ -15,6 +15,7 @@ export type {
   MathInline,
   Variable,
   QuoteInline,
+  Spoiler,
 } from './inline.ts'
 export type {
   Block,
@@ -44,5 +45,6 @@ export type {
   NamedBlock,
   RefDefinition,
   MathBlock,
+  SpoilerBlock,
 } from './blocks.ts'
 export type { NodeMap } from './node-map.ts'
