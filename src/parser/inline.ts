@@ -233,6 +233,11 @@ class InlineScanner {
     let content = ''
     let closed = false
     while (this.pos < this.chars.length) {
+      if (this.ch() === '\\' && this.ch(1) === '`') {
+        content += '`'
+        this.pos += 2
+        continue
+      }
       if (this.ch() === '`' && this.ch(1) === '`') {
         this.pos += 2
         closed = true
