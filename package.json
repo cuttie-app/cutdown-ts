@@ -41,7 +41,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsup --config .config/tsup.config.ts",
+    "build": "tsdown --config .config/tsdown.config.ts",
     "prepublishOnly": "pnpm run build",
     "test": "vitest --config .config/vitest.config.ts run",
     "check:ts": "tsc --noEmit",
@@ -51,12 +51,12 @@
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
-    "@types/node": "22.19.15",
-    "js-yaml": "4.1.1",
-    "oxfmt": "0.41.0",
-    "oxlint": "1.56.0",
-    "tsup": "8.5.1",
-    "typescript": "5.9.3",
+    "@types/node": "25.9.3",
+    "js-yaml": "4.2.0",
+    "oxfmt": "0.54.0",
+    "oxlint": "1.69.0",
+    "tsdown": "^0.22.2",
+    "typescript": "6.0.3",
     "vitest": "3.2.4"
   },
   "packageManager": "pnpm@10.30.3"
