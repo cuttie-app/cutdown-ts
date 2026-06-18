@@ -91,6 +91,7 @@ import type {
   FileGroup,
   NamedBlock,
   MathBlock,
+  CommentBlock,
 
   // Inline segments
   Inline,
@@ -106,6 +107,7 @@ import type {
   Span,
   MathInline,
   QuoteInline,
+  CommentInline,
 
   // Special segments
   Meta,
@@ -214,6 +216,7 @@ result.walk({
 | `NamedBlock`    | `name: string`, `children: Block[]`, `attributes`                                                                                  |
 | `RefDefinition` | `id: string`, `children: Inline[]`, `attributes`                                                                                   |
 | `MathBlock`     | `raw: string`, `attributes`                                                                                                        |
+| `CommentBlock`  | `text: string` — opaque body between `###` fences (§2.3)                                                                           |
 
 #### Inline nodes
 
@@ -231,6 +234,7 @@ result.walk({
 | `MathInline`    | `formula: string`, `attributes`                                                        |
 | `Variable`      | `key: string`, `attributes`                                                            |
 | `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                       |
+| `CommentInline` | `text: string` — line comment opened by `##`, runs to EOL (§2.2)                       |
 
 #### Discriminant unions
 
@@ -250,6 +254,7 @@ type Block =
   | NamedBlock
   | RefDefinition
   | MathBlock
+  | CommentBlock
 
 type Inline =
   | Text
@@ -264,6 +269,7 @@ type Inline =
   | MathInline
   | Variable
   | QuoteInline
+  | CommentInline
 
 type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
 type TableKind = 'simple' | 'gfm'
