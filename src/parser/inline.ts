@@ -16,6 +16,7 @@ import type {
   QuoteInline,
   Spoiler,
   LinkKind,
+  CommentInline,
 } from '../types/document'
 import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
@@ -134,12 +135,14 @@ class InlineScanner {
   }
 
   private pushText(s: string): void {
-    if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
+    // §2.6: pure whitespace is transparent to trailing-attr resolution
+    if (this.trailingAttrGroups.length > 0 && s.trim() !== '') this.trailingAttrGroups = []
     this.nodes.push({ type: 'Text', value: s })
   }
 
   private pushNode(node: Inline): void {
-    if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
+    // §2.6: CommentInline is transparent to trailing-attr resolution
+    if (this.trailingAttrGroups.length > 0 && node.type !== 'CommentInline') this.trailingAttrGroups = []
     this.nodes.push(node)
   }
 
@@ -177,6 +180,11 @@ class InlineScanner {
 
     if (c === '$' && this.ch(1) === '$') {
       if (this.tryLiteral2('$$', 'MathInline')) return
+    }
+
+    if (c === '#' && this.ch(1) === '#') {
+      this.emitCommentInline()
+      return
     }
 
     if (c === '*' && this.ch(1) === '*') {
@@ -225,6 +233,17 @@ class InlineScanner {
 
     this.pos++
     this.pushText(c)
+  }
+
+  private emitCommentInline(): void {
+    // pos is at first '#' of '##'. Consume '##' and capture chars to next '\n'.
+    this.pos += 2
+    let text = ''
+    while (this.pos < this.chars.length && this.chars[this.pos] !== '\n') {
+      text += this.chars[this.pos++]
+    }
+    const node: CommentInline = { type: 'CommentInline', text }
+    this.pushNode(node)
   }
 
   private tryCodeInline(): boolean {
@@ -554,15 +573,15 @@ class InlineScanner {
 
     const lastNonText = this.findLastNonTextNode()
     if (lastNonText === null) {
-      if (this.nodes.length === 0) {
-        // Leading {…}: if non-attr content follows, emit as literal text.
-        if (this.hasNonAttrContentAfter()) {
-          this.pos = savedPos
-          return false
-        }
+      // §6.3: no eligible slot. If non-attr/non-comment content follows, orphan → literal.
+      if (this.hasNonAttrContentAfter()) {
+        this.pos = savedPos
+        return false
       }
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
+      // §12: strip trailing whitespace from preceding Text now that attrs are consumed.
+      this.trimTrailingTextWhitespace()
       return true
     }
 
@@ -575,18 +594,22 @@ class InlineScanner {
     ) {
       this.diagnostics.push(...diagnostics)
       ;(lastNonText as { attributes?: Attribute[] }).attributes = attrs
-      if (this.nodes.length > 0) {
-        const last = this.nodes[this.nodes.length - 1] || { type: '' }
-        if (last.type === 'Text') {
-          ;(last as Text).value = (last as Text).value.trimEnd()
-          if ((last as Text).value === '') this.nodes.pop()
-        }
-      }
+      this.trimTrailingTextWhitespace()
     } else {
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
+      this.trimTrailingTextWhitespace()
     }
     return true
+  }
+
+  private trimTrailingTextWhitespace(): void {
+    if (this.nodes.length === 0) return
+    const last = this.nodes[this.nodes.length - 1]
+    if (last && last.type === 'Text') {
+      ;(last as Text).value = (last as Text).value.trimEnd()
+      if ((last as Text).value === '') this.nodes.pop()
+    }
   }
 
   /**
@@ -595,11 +618,23 @@ class InlineScanner {
    */
   private hasNonAttrContentAfter(): boolean {
     let i = this.pos
-    while (i < this.chars.length && (this.chars[i] === ' ' || this.chars[i] === '\n')) i++
-    if (i >= this.chars.length) return false
-    // Another {…} attr block is not "real" content for attachment purposes
-    if (this.chars[i] === '{' && this.chars[i + 1] !== '{') return false
-    return true
+    while (i < this.chars.length) {
+      const c = this.chars[i]
+      if (c === ' ' || c === '\n') {
+        i++
+        continue
+      }
+      // Another {…} attr block is not "real" content
+      if (c === '{' && this.chars[i + 1] !== '{') return false
+      // §2.6: CommentInline is transparent — skip `## … <EOL>`
+      if (c === '#' && this.chars[i + 1] === '#') {
+        i += 2
+        while (i < this.chars.length && this.chars[i] !== '\n') i++
+        continue
+      }
+      return true
+    }
+    return false
   }
 
   private findLastNonTextNode(): Inline | null {
@@ -614,6 +649,8 @@ class InlineScanner {
     let depth = 0
     while (this.pos < this.chars.length) {
       const ch = this.chars[this.pos]
+      // §2.2: `##` inside bracketed text degrades the link — abort.
+      if (ch === '#' && this.chars[this.pos + 1] === '#') return null
       if (ch === '[') {
         depth++
         chars.push(ch)

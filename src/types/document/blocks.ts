@@ -38,6 +38,12 @@ export type Block =
   | RefDefinition
   | MathBlock
   | SpoilerBlock
+  | CommentBlock
+
+export interface CommentBlock {
+  type: 'CommentBlock'
+  text: string
+}
 
 // ─── Block nodes ──────────────────────────────────────────────────────────────
 
@@ -122,6 +128,7 @@ export interface Row {
   type: 'Row'
   children: Cell[]
   attributes: Attribute[]
+  comments?: import('./inline.ts').CommentInline[]
 }
 
 export interface Table {

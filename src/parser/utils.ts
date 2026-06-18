@@ -68,10 +68,13 @@ export function normalize(input: string): string[] {
   if (!s.endsWith('\n')) s += '\n'
   s = s.replace(/\t/g, ' ')
   const raw = s.split('\n')
-  return raw.filter((line) => {
-    const trimmed = line.trimStart()
-    return !trimmed.startsWith('#')
-  })
+  if (raw.length > 0 && raw[raw.length - 1] === '') raw.pop()
+  // \u00A77.6: strip document-edge blank lines (whitespace-only)
+  let start = 0
+  while (start < raw.length && (raw[start] ?? '').trim() === '') start++
+  let end = raw.length
+  while (end > start && (raw[end - 1] ?? '').trim() === '') end--
+  return raw.slice(start, end)
 }
 
 // Re-export AttrsParseResult so callers of utils don't need a separate import

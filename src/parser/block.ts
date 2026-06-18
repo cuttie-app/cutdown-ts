@@ -2,6 +2,8 @@ import type {
   Attribute,
   Block,
   CodeBlock,
+  CommentBlock,
+  CommentInline,
   Column,
   Diagnostic,
   Document,
@@ -59,7 +61,8 @@ const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnost
         let found = false
         for (let j = slot.length - 1; j >= 0; j--) {
           const n = slot[j] as Record<string, unknown>
-          if (typeof n === 'object' && n['type'] !== 'Text') {
+          // §2.6: skip Text AND CommentInline (transparent for attr resolution)
+          if (typeof n === 'object' && n['type'] !== 'Text' && n['type'] !== 'CommentInline') {
             if (group.length > 0) n['attributes'] = group
             found = true
             break
@@ -237,11 +240,37 @@ const processBlocks = (blocks: Block[]): Block[] => {
 
 // ─── Table row helper ─────────────────────────────────────────────────────────
 
-const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][] } => {
+const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][]; comment?: CommentInline } => {
   const trimmed = line.trim()
-  const { text: cellsPart, groups } = extractTrailingAttrGroups(trimmed)
+  // §4.8: trailing `## …` becomes the Row's comment (one per line).
+  let comment: CommentInline | undefined
+  let work = trimmed
+  const hashIdx = findRowCommentSplit(work)
+  if (hashIdx >= 0) {
+    const text = work.slice(hashIdx + 2)
+    comment = { type: 'CommentInline', text }
+    work = work.slice(0, hashIdx).trimEnd()
+  }
+  const { text: cellsPart, groups } = extractTrailingAttrGroups(work)
   const cells = splitCells(cellsPart.trimEnd())
-  return { cells, attrGroups: groups }
+  return { cells, attrGroups: groups, ...(comment ? { comment } : {}) }
+}
+
+/**
+ * Locate `##` outside of code/math/quoted inline contexts in a table row line.
+ * Returns -1 if no comment split is found. A naive scan is enough — table cells
+ * cannot contain block-level structures, and §2.2 says `##` is opaque to other
+ * delimiters anyway.
+ */
+const findRowCommentSplit = (line: string): number => {
+  for (let i = 0; i < line.length - 1; i++) {
+    if (line[i] === '\\') {
+      i++
+      continue
+    }
+    if (line[i] === '#' && line[i + 1] === '#') return i
+  }
+  return -1
 }
 
 // ─── BlockParser ──────────────────────────────────────────────────────────────
@@ -346,12 +375,20 @@ export class BlockParser {
     if (line.startsWith('```')) return this.parseCodeBlock()
     if (line.startsWith('~~~')) return this.parseMetaBlock()
     if (line.startsWith('$$$')) return this.parseMathBlock()
+    if (/^###\s*$/.test(line)) return this.parseCommentBlock()
     if (line.startsWith('^^^')) {
       const rest = line.replace(/^\^+/, '').trim()
       if (rest === '' || rest.startsWith('{')) return this.parseSpoilerBlock()
     }
     if (line.startsWith('---')) return this.parseThematicBreak()
-    if (line.startsWith('|')) return this.parseTable()
+    if (line.startsWith('|')) {
+      // §4.8: if `##` appears mid-line, the pre-`##` substring must still be a
+      // valid row (end with `|`); otherwise fall through to Paragraph.
+      const hashIdx = findRowCommentSplit(line)
+      if (hashIdx < 0 || line.slice(0, hashIdx).trimEnd().endsWith('|')) {
+        return this.parseTable()
+      }
+    }
     if (line.startsWith('>')) return this.parseQuoteBlock()
     if (line.startsWith('![')) return this.parseImageBlock()
     if (line.startsWith('/')) return this.parseFileRef()
@@ -410,7 +447,8 @@ export class BlockParser {
         closed = true
         break
       }
-      contentLines.push(l)
+      // §8.3: `\`` in body emits literal backtick; escaped fence line stays content.
+      contentLines.push(l.replace(/\\`/g, '`'))
       this.pos++
     }
     if (!closed) {
@@ -442,7 +480,8 @@ export class BlockParser {
         closed = true
         break
       }
-      contentLines.push(l)
+      // §8.3: `\~` in body emits literal tilde; escaped fence line stays content.
+      contentLines.push(l.replace(/\\~/g, '~'))
       this.pos++
     }
     if (!closed) {
@@ -493,6 +532,33 @@ export class BlockParser {
     const node: MathBlock = { type: 'MathBlock', raw, attributes: [] }
     if (attrs) node.attributes = attrs
     return node
+  }
+
+  // ── CommentBlock ──────────────────────────────────────────────────────────
+
+  private parseCommentBlock() {
+    const openLine = this.advance()
+    void openLine
+
+    const contentLines: string[] = []
+    let closed = false
+    while (this.pos < this.lines.length) {
+      const l = this.lines[this.pos] || ''
+      if (/^###\s*$/.test(l.trim())) {
+        this.pos++
+        closed = true
+        break
+      }
+      // §8.3: `\#` in body emits literal `#` (uniform replacement)
+      const escaped = l.replace(/\\#/g, '#')
+      contentLines.push(escaped)
+      this.pos++
+    }
+    if (!closed) {
+      this.diagnostics.push({ code: 'CDN-0006', level: 'warning' })
+    }
+    const text = contentLines.length > 0 ? contentLines.join('\n') + '\n' : ''
+    return { type: 'CommentBlock', text } as CommentBlock
   }
 
   // ── ThematicBreak ─────────────────────────────────────────────────────────
@@ -565,9 +631,18 @@ export class BlockParser {
     const delimIdx = tableLines.findIndex((l) => isDelimiterRow(l))
     const isGfm = delimIdx === 1
 
+    // §4.8: parse delim row with same helper so its trailing `##` comment can
+    // be attached to the head row and any stray `{attrs}` are diagnosed.
+    let delimComment: CommentInline | undefined
     const columns: Column[] = []
     if (isGfm) {
-      for (const cell of splitCells(tableLines[delimIdx] || '')) {
+      const delimLine = tableLines[delimIdx] || ''
+      const delimParsed = parseTableRowLine(delimLine)
+      if (delimParsed.attrGroups.length > 0) {
+        this.diagnostics.push({ code: 'CDN-0007', level: 'warning' })
+      }
+      delimComment = delimParsed.comment
+      for (const cell of delimParsed.cells) {
         columns.push({ type: 'Column', align: parseColumnAlign(cell.trim()) })
       }
     }
@@ -580,19 +655,26 @@ export class BlockParser {
       for (let i = 0; i < colCount; i++) columns.push({ type: 'Column', align: 'left' })
     }
 
-    const rows: Row[] = rowsData.map((rd, rowIdx) => ({
-      type: 'Row' as const,
-      children: rd.cells.map((cellText, colIdx) => {
-        const { nodes } = parseInlineText(cellText.trim())
-        return { type: 'Cell' as const, children: nodes, row: rowIdx, column: colIdx }
-      }),
-      attributes: [],
-    }))
+    const rows: Row[] = rowsData.map((rd, rowIdx) => {
+      const row: Row = {
+        type: 'Row',
+        children: rd.cells.map((cellText, colIdx) => {
+          const { nodes } = parseInlineText(cellText.trim())
+          return { type: 'Cell' as const, children: nodes, row: rowIdx, column: colIdx }
+        }),
+        attributes: [],
+      }
+      if (rd.comment) row.comments = [rd.comment]
+      return row
+    })
 
     let head: Row[] | undefined
     let body: Row[] = rows
     if (isGfm && rows.length > 0) {
       head = rows[0] ? [rows[0]] : []
+      if (delimComment && rows[0]) {
+        rows[0].comments = [...(rows[0].comments ?? []), delimComment]
+      }
       body = rows.slice(1)
       body.forEach((r, i) =>
         r.children.forEach((c) => {
@@ -892,7 +974,26 @@ export class BlockParser {
       const stripped = line.trimStart()
       const lineCol = line.length - stripped.length
 
-      if (stripped.startsWith('>')) {
+      if (/^###\s*$/.test(stripped)) {
+        flushText()
+        const innerLines: string[] = []
+        let j = i + 1
+        let foundClose = false
+        while (j < contentLines.length) {
+          const next = (contentLines[j] || '').trimStart()
+          if (/^###\s*$/.test(next)) {
+            foundClose = true
+            break
+          }
+          innerLines.push((contentLines[j] || '').replace(/\\#/g, '#'))
+          j++
+        }
+        i = foundClose ? j : j - 1
+        if (!foundClose) this.diagnostics.push({ code: 'CDN-0006', level: 'warning' })
+        const text = innerLines.length > 0 ? innerLines.join('\n') + '\n' : ''
+        result.push({ type: 'CommentBlock', text } as CommentBlock)
+        trailingAttrGroups = []
+      } else if (stripped.startsWith('>')) {
         flushText()
         const subLines: string[] = [stripped]
         let j = i + 1
@@ -1053,11 +1154,18 @@ export class BlockParser {
       openerAttrLines.push(this.advance())
     }
 
-    const { trailingAttrGroups, diagnostics: attrDiags } = parseInlineText(openerAttrLines.join('\n'))
+    const {
+      nodes: openerNodes,
+      trailingAttrGroups,
+      diagnostics: attrDiags,
+    } = parseInlineText(openerAttrLines.join('\n'))
     this.diagnostics.push(...attrDiags)
 
     const node: NamedBlock = { type: 'NamedBlock', name, children: [], attributes: [] }
     distributeScopeChain(trailingAttrGroups, [node], this.diagnostics)
+
+    // §2.6: CommentInline in the opener becomes first child(ren) of the body.
+    const openerComments = openerNodes.filter((n) => n.type === 'CommentInline')
 
     const contentLines: string[] = []
     let closed = false
@@ -1098,6 +1206,9 @@ export class BlockParser {
     const sub = new BlockParser(stripped, true)
     node.children = sub.parseBlocks()
     this.diagnostics.push(...sub.diagnostics)
+    if (openerComments.length > 0) {
+      node.children = [...(openerComments as unknown as Block[]), ...node.children]
+    }
 
     return node
   }
@@ -1163,7 +1274,31 @@ export class BlockParser {
       attrLines.push(this.advance())
     }
 
-    const joined = paraLines.map((l, idx) => (idx === 0 ? l : l.trimStart())).join('\n')
+    // §8.2: handle line-start block-opener escapes inside a paragraph context.
+    // Replace `\<marker>` with each marker char individually escaped (`\X\X\X…`),
+    // so the inline scanner emits literal marker chars without re-classifying
+    // them as inline delimiters (e.g. `::name` → Span). For multi-line
+    // paragraphs, also inject boundary spaces so the soft-break preserves a
+    // visible word break around the literal marker.
+    const transformed: string[] = paraLines.map((l, idx) => (idx === 0 ? l : l.trimStart()))
+    for (let i = 0; i < transformed.length; i++) {
+      const t = transformed[i] || ''
+      const m = t.match(/^\\(=+|---+|~~~+|\$\$\$+|\^\^\^+|`{3,}|###+|:::+|\/|>|-)/)
+      if (!m) continue
+      const marker = m[1] || ''
+      const rest = t.slice(1 + marker.length)
+      // Escape each marker char so the inline scanner keeps them literal.
+      let reEscaped = ''
+      for (const c of marker) reEscaped += '\\' + c
+      let line = reEscaped + rest
+      if (transformed.length > 1) {
+        line = line + ' '
+        if (i > 0) transformed[i - 1] = (transformed[i - 1] || '') + ' '
+      }
+      transformed[i] = line
+    }
+
+    const joined = transformed.join('\n')
 
     const { nodes, trailingAttrGroups, diagnostics } = parseInlineText(joined)
     this.diagnostics.push(...diagnostics)
@@ -1173,6 +1308,12 @@ export class BlockParser {
       const pr = parseInlineText(attrLines.join('\n'))
       this.diagnostics.push(...pr.diagnostics)
       groups = [...groups, ...pr.trailingAttrGroups]
+    }
+
+    // §2.2: a Paragraph whose only child is a single CommentInline is replaced
+    // by the bare CommentInline at the surrounding scope (Page or container).
+    if (nodes.length === 1 && nodes[0]?.type === 'CommentInline' && groups.length === 0) {
+      return nodes[0] as unknown as Paragraph
     }
 
     const node: Paragraph = { type: 'Paragraph', children: nodes, attributes: [] }

@@ -19,6 +19,7 @@ import type {
   RefDefinition,
   MathBlock,
   SpoilerBlock,
+  CommentBlock,
 } from './blocks.ts'
 import type {
   Text,
@@ -34,6 +35,7 @@ import type {
   Variable,
   QuoteInline,
   Spoiler,
+  CommentInline,
 } from './inline.ts'
 
 /**
@@ -68,6 +70,7 @@ export type NodeMap = {
   RefDefinition: RefDefinition
   MathBlock: MathBlock
   SpoilerBlock: SpoilerBlock
+  CommentBlock: CommentBlock
   // ── Inline nodes ──────────────────────────────────────────────────────────
   Text: Text
   Emphasis: Emphasis
@@ -82,4 +85,5 @@ export type NodeMap = {
   Variable: Variable
   QuoteInline: QuoteInline
   Spoiler: Spoiler
+  CommentInline: CommentInline
 }

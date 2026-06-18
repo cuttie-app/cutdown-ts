@@ -25,6 +25,12 @@ export type Inline =
   | Variable
   | QuoteInline
   | Spoiler
+  | CommentInline
+
+export interface CommentInline {
+  type: 'CommentInline'
+  text: string
+}
 
 // ─── Inline nodes ─────────────────────────────────────────────────────────────
 

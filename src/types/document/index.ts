@@ -16,6 +16,7 @@ export type {
   Variable,
   QuoteInline,
   Spoiler,
+  CommentInline,
 } from './inline.ts'
 export type {
   Block,
@@ -46,5 +47,6 @@ export type {
   RefDefinition,
   MathBlock,
   SpoilerBlock,
+  CommentBlock,
 } from './blocks.ts'
 export type { NodeMap } from './node-map.ts'
