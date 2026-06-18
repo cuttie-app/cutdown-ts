@@ -91,6 +91,7 @@ import type {
   FileGroup,
   NamedBlock,
   MathBlock,
+  SpoilerBlock,
   CommentBlock,
 
   // Inline segments
@@ -107,6 +108,7 @@ import type {
   Span,
   MathInline,
   QuoteInline,
+  Spoiler,
   CommentInline,
 
   // Special segments
@@ -216,6 +218,7 @@ result.walk({
 | `NamedBlock`    | `name: string`, `children: Block[]`, `attributes`                                                                                  |
 | `RefDefinition` | `id: string`, `children: Inline[]`, `attributes`                                                                                   |
 | `MathBlock`     | `raw: string`, `attributes`                                                                                                        |
+| `SpoilerBlock`  | `children: Block[]`, `attributes` — `^^^`-fenced; body parsed as blocks; does not nest (§4.15)                                     |
 | `CommentBlock`  | `text: string` — opaque body between `###` fences (§2.3)                                                                           |
 
 #### Inline nodes
@@ -234,6 +237,7 @@ result.walk({
 | `MathInline`    | `formula: string`, `attributes`                                                        |
 | `Variable`      | `key: string`, `attributes`                                                            |
 | `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                       |
+| `Spoiler`       | `children: Inline[]`, `attributes` — `^^…^^` delimited; rendering chosen by consumer (§5.12) |
 | `CommentInline` | `text: string` — line comment opened by `##`, runs to EOL (§2.2)                       |
 
 #### Discriminant unions
@@ -254,6 +258,7 @@ type Block =
   | NamedBlock
   | RefDefinition
   | MathBlock
+  | SpoilerBlock
   | CommentBlock
 
 type Inline =
@@ -269,6 +274,7 @@ type Inline =
   | MathInline
   | Variable
   | QuoteInline
+  | Spoiler
   | CommentInline
 
 type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
