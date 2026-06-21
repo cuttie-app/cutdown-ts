@@ -7,6 +7,8 @@ export interface InlineParseResult {
   /** Trailing attribute groups for scope-chain distribution (left-to-right order) */
   trailingAttrGroups: Attribute[][]
   diagnostics: Diagnostic[]
+  /** `##` comments extracted from the inline text; block parser attaches them to reflection */
+  comments: { lineOffset: number; text: string }[]
 }
 
 // ─── Inline union ─────────────────────────────────────────────────────────────
@@ -25,12 +27,6 @@ export type Inline =
   | Variable
   | QuoteInline
   | Spoiler
-  | CommentInline
-
-export interface CommentInline {
-  type: 'CommentInline'
-  text: string
-}
 
 // ─── Inline nodes ─────────────────────────────────────────────────────────────
 

@@ -18,8 +18,20 @@ export function isListMarkerLine(line: string): boolean {
 
 // ─── Table helpers ────────────────────────────────────────────────────────────
 
-export function isDelimiterRow(line: string): boolean {
-  return line.trimStart().startsWith('|') && /\|[\s:]*-{2,}[\s:]*\|/.test(line)
+
+/** Returns true if a `+…+` row is a header separator (contains `:` anywhere) */
+export function isHeaderSeparatorRow(line: string): boolean {
+  const t = line.trimStart()
+  return t.startsWith('+') && t.includes(':')
+}
+
+/** Split a `+…+` separator row into column segments (between `+` delimiters) */
+export function splitGridSeparator(line: string): string[] {
+  const t = line.trimStart()
+  const inner = t.startsWith('+') ? t.slice(1) : t
+  const parts = inner.split('+')
+  if (parts[parts.length - 1]?.trim() === '') parts.pop()
+  return parts
 }
 
 export function splitCells(line: string): string[] {

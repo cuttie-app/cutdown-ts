@@ -35,7 +35,6 @@ import type {
   Variable,
   QuoteInline,
   Spoiler,
-  CommentInline,
 } from './inline.ts'
 
 /**
@@ -85,5 +84,4 @@ export type NodeMap = {
   Variable: Variable
   QuoteInline: QuoteInline
   Spoiler: Spoiler
-  CommentInline: CommentInline
 }

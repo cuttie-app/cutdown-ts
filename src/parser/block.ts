@@ -3,7 +3,6 @@ import type {
   Block,
   CodeBlock,
   CommentBlock,
-  CommentInline,
   Column,
   Diagnostic,
   Document,
@@ -21,6 +20,7 @@ import type {
   Page,
   Paragraph,
   QuoteBlock,
+  Reflection,
   RefDefinition,
   Row,
   Section,
@@ -33,12 +33,13 @@ import { extractTrailingAttrGroups, parseAttrBlock } from './attrs.ts'
 import { parseInlineLines, parseInlineText } from './inline.ts'
 import {
   detectFileGroup,
-  isDelimiterRow,
+  isHeaderSeparatorRow,
   isIdChar,
   isIdStart,
   isListMarkerLine,
   parseColumnAlign,
   splitCells,
+  splitGridSeparator,
 } from './utils.ts'
 
 // ─── Scope-chain distribution ─────────────────────────────────────────────────
@@ -61,8 +62,7 @@ const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnost
         let found = false
         for (let j = slot.length - 1; j >= 0; j--) {
           const n = slot[j] as Record<string, unknown>
-          // §2.6: skip Text AND CommentInline (transparent for attr resolution)
-          if (typeof n === 'object' && n['type'] !== 'Text' && n['type'] !== 'CommentInline') {
+          if (typeof n === 'object' && n['type'] !== 'Text') {
             if (group.length > 0) n['attributes'] = group
             found = true
             break
@@ -155,6 +155,9 @@ const groupFileRefs = (blocks: Block[]) => {
     if (group !== undefined) {
       const children: (FileRef | ImageBlock)[] = [b as FileRef | ImageBlock]
       while (i + 1 < blocks.length) {
+        // If the last added child already has a caption, close the group here (mid-run)
+        const lastChild = children[children.length - 1]
+        if (lastChild && (lastChild as unknown as Record<string, unknown>)['caption']) break
         const next = blocks[i + 1]
         if (!next) break
         if ((next as unknown as Record<string, unknown>)['type'] === 'Spacer') break
@@ -166,14 +169,22 @@ const groupFileRefs = (blocks: Block[]) => {
 
       if (children.length > 1 || children[0]?.type === 'FileRef') {
         const groupNode: FileRefGroup = { type: 'FileRefGroup', group, children, attributes: [] }
-        result.push(groupNode)
+        // Move caption from last child to group
         const lastItem = children[children.length - 1]
-        const groups = (lastItem as unknown as Record<string, unknown>)['attrGroups'] as Attribute[][] | undefined
-        if (lastItem && groups && groups.length > 0) {
-          const slots: unknown[] = [groupNode, lastItem]
-          if (lastItem.type === 'ImageBlock') slots.push(lastItem.alt)
-          distributeScopeChain(groups, slots, [])
+        if (lastItem) {
+          const lastAny = lastItem as unknown as Record<string, unknown>
+          if (lastAny['caption']) {
+            ;(groupNode as unknown as Record<string, unknown>)['caption'] = lastAny['caption']
+            delete lastAny['caption']
+          }
+          const attrGroups = lastAny['attrGroups'] as Attribute[][] | undefined
+          if (attrGroups && attrGroups.length > 0) {
+            const slots: unknown[] = [groupNode, lastItem]
+            if (lastItem.type === 'ImageBlock') slots.push(lastItem.alt)
+            distributeScopeChain(attrGroups, slots, [])
+          }
         }
+        result.push(groupNode)
       } else if (children[0]) {
         result.push(children[0])
       }
@@ -240,20 +251,36 @@ const processBlocks = (blocks: Block[]): Block[] => {
 
 // ─── Table row helper ─────────────────────────────────────────────────────────
 
-const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][]; comment?: CommentInline } => {
+const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][]; comment?: { text: string } } => {
   const trimmed = line.trim()
-  // §4.8: trailing `## …` becomes the Row's comment (one per line).
-  let comment: CommentInline | undefined
+  let comment: { text: string } | undefined
   let work = trimmed
   const hashIdx = findRowCommentSplit(work)
   if (hashIdx >= 0) {
-    const text = work.slice(hashIdx + 2)
-    comment = { type: 'CommentInline', text }
+    const text = work.slice(hashIdx + 2).trimStart()
+    comment = { text }
     work = work.slice(0, hashIdx).trimEnd()
   }
   const { text: cellsPart, groups } = extractTrailingAttrGroups(work)
   const cells = splitCells(cellsPart.trimEnd())
   return { cells, attrGroups: groups, ...(comment ? { comment } : {}) }
+}
+
+/** Parse a `+…+` separator line: extract comment, attrGroups, and column segments */
+const parseGridSeparatorLine = (line: string): { segments: string[]; isHeader: boolean; attrGroups: Attribute[][]; comment?: { text: string } } => {
+  const trimmed = line.trim()
+  let work = trimmed
+  let comment: { text: string } | undefined
+  const hashIdx = findRowCommentSplit(work)
+  if (hashIdx >= 0) {
+    const text = work.slice(hashIdx + 2).trimStart()
+    comment = { text }
+    work = work.slice(0, hashIdx).trimEnd()
+  }
+  const { text: withoutAttrs, groups: attrGroups } = extractTrailingAttrGroups(work)
+  const isHeader = isHeaderSeparatorRow(withoutAttrs)
+  const segments = splitGridSeparator(withoutAttrs)
+  return { segments, isHeader, attrGroups, ...(comment ? { comment } : {}) }
 }
 
 /**
@@ -323,18 +350,51 @@ export class BlockParser {
 
   parseBlocks() {
     const blocks: (Block | RefDefinition)[] = []
+
+    const CAPTIONABLE = new Set([
+      'Table', 'ImageBlock', 'CodeBlock', 'MathBlock',
+      'FileRef', 'FileRefGroup', 'NamedBlock', 'SpoilerBlock', 'QuoteBlock',
+    ])
+
+    const addReflection = (block: Block, entry: Reflection) => {
+      const b = block as unknown as Record<string, unknown>
+      b['reflection'] = [...((b['reflection'] as Reflection[] | undefined) ?? []), entry]
+    }
+
+    const lastNonSpacer = (): Block | null => {
+      for (let i = blocks.length - 1; i >= 0; i--) {
+        const b = blocks[i] as unknown as Record<string, unknown>
+        if (b['type'] !== 'Spacer') return blocks[i] as Block
+      }
+      return null
+    }
+
     while (this.pos < this.lines.length) {
       if (this.isBlank()) {
         blocks.push({ type: 'Spacer' } as unknown as Block)
         this.pos++
         continue
       }
-      const block = this.parseBlock()
-      blocks.push(block)
 
-      // For non-paragraph blocks (paragraphs already handle their own trailing {attrs}
-      // lines internally), collect any immediately following standalone {attrs} lines
-      // and attach them to this block.
+      // §2.2: standalone `##` line — attaches to preceding block's reflection
+      const peekLine = this.peek().trimStart()
+      if (peekLine.startsWith('##') && !peekLine.startsWith('###')) {
+        const docLine = this.pos
+        this.advance()
+        const text = peekLine.slice(2).trimStart()
+        const entry: Reflection = { line: docLine, text }
+        const prev = lastNonSpacer()
+        if (prev) {
+          addReflection(prev, entry)
+        } else {
+          blocks.push({ type: 'Paragraph', children: [], attributes: [], reflection: [entry] } as unknown as Block)
+        }
+        continue
+      }
+
+      const block = this.parseBlock()
+
+      // Consume trailing attr lines (for non-Paragraph blocks)
       if (block.type !== 'Paragraph') {
         const attrLines: string[] = []
         while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
@@ -349,6 +409,54 @@ export class BlockParser {
           }
         }
       }
+
+      // §6.5: caption binding for captionable blocks
+      if (CAPTIONABLE.has(block.type)) {
+        // Look ahead past any standalone ## lines (attach to block reflection)
+        while (this.pos < this.lines.length) {
+          const nextLine = this.peek().trimStart()
+          if (nextLine.startsWith('##') && !nextLine.startsWith('###')) {
+            const docLine = this.pos
+            this.advance()
+            addReflection(block as Block, { line: docLine, text: nextLine.slice(2).trimStart() })
+          } else break
+        }
+
+        // Check for `^ ` caption line
+        if (this.pos < this.lines.length && this.peek().startsWith('^ ')) {
+          const captionLine = this.advance()
+          const captionRaw = captionLine.slice(2)
+
+          // CDN-0009: trailing {attrs} on caption line → literal text + warning
+          const { nodes: captionNodes, comments: captionComments, trailingAttrGroups: captionAttrGroups } = parseInlineText(captionRaw)
+
+          if (captionAttrGroups.some((g) => g.length > 0)) {
+            this.diagnostics.push({ code: 'CDN-0009', level: 'warning' })
+            // Re-extract raw trailing attr text for literal representation
+            const { text: captionMain } = extractTrailingAttrGroups(captionRaw)
+            const trailRaw = captionRaw.trimEnd().slice(captionMain.length)
+            const last = captionNodes[captionNodes.length - 1]
+            if (last?.type === 'Text') {
+              ;(last as unknown as { value: string }).value += trailRaw
+            } else if (trailRaw) {
+              captionNodes.push({ type: 'Text', value: trailRaw } as unknown as Inline)
+            }
+          }
+
+          // Any ## in caption text → attach to block reflection
+          for (const c of captionComments) {
+            addReflection(block as Block, { line: this.pos - 1, text: c.text })
+          }
+
+          if (block.type === 'QuoteBlock') {
+            ;(block as unknown as Record<string, unknown>)['attribution'] = captionNodes
+          } else {
+            ;(block as unknown as Record<string, unknown>)['caption'] = captionNodes
+          }
+        }
+      }
+
+      blocks.push(block)
     }
     return blocks
   }
@@ -388,6 +496,14 @@ export class BlockParser {
       if (hashIdx < 0 || line.slice(0, hashIdx).trimEnd().endsWith('|')) {
         return this.parseTable()
       }
+    }
+    if (/^\+[-:]/.test(line) || (line.startsWith('+') && line.includes(':'))) {
+      return this.parseTable()
+    }
+    // §6.5: orphaned caption line → CDN-0008 + Paragraph
+    if (line.startsWith('^ ') || line === '^') {
+      this.diagnostics.push({ code: 'CDN-0008', level: 'warning' })
+      return this.parseParagraph()
     }
     if (line.startsWith('>')) return this.parseQuoteBlock()
     if (line.startsWith('![')) return this.parseImageBlock()
@@ -591,6 +707,7 @@ export class BlockParser {
   // ── Heading / Section ─────────────────────────────────────────────────────
 
   private parseHeading(eqCount: number) {
+    const docLine = this.pos
     const rawLine = this.advance()
     const line = rawLine.trimStart()
     const lines: string[] = [line.slice(eqCount + 1)]
@@ -607,20 +724,43 @@ export class BlockParser {
     const level = eqCount
     const fullContent = lines.join('\n')
 
-    const { nodes: heading, trailingAttrGroups, diagnostics } = parseInlineText(fullContent)
+    const { nodes: heading, trailingAttrGroups, diagnostics, comments } = parseInlineText(fullContent)
     this.diagnostics.push(...diagnostics)
 
     const node: Section = { type: 'Section', level, heading, attributes: [], children: [] }
     distributeScopeChain(trailingAttrGroups, [node, heading], this.diagnostics)
+    if (comments.length > 0) {
+      node.reflection = comments.map((c) => ({ line: docLine + c.lineOffset, text: c.text }))
+    }
     return node
   }
 
   // ── Table ─────────────────────────────────────────────────────────────────
 
   private parseTable() {
+    const firstLine = this.peek().trimStart()
+    if (/^\+[-:]/.test(firstLine) || (firstLine.startsWith('+') && firstLine.includes(':'))) {
+      return this.parseMultilineTable()
+    }
+    return this.parseGfmTable()
+  }
+
+  private parseGfmTable(): Table {
     const tableLines: string[] = []
-    while (this.pos < this.lines.length && this.lines[this.pos]?.trimStart().startsWith('|')) {
-      tableLines.push(this.lines[this.pos++] || '')
+    const tableDocLines: number[] = []
+
+    while (this.pos < this.lines.length) {
+      const raw = this.lines[this.pos] || ''
+      const line = raw.trimStart()
+      if (line.startsWith('|')) {
+        const hashIdx = findRowCommentSplit(line)
+        if (hashIdx >= 0 && !line.slice(0, hashIdx).trimEnd().endsWith('|')) break
+        tableLines.push(raw)
+        tableDocLines.push(this.pos++)
+      } else if (/^\+[-:]/.test(line) || (line.startsWith('+') && line.includes(':'))) {
+        tableLines.push(raw)
+        tableDocLines.push(this.pos++)
+      } else break
     }
 
     const attrLines: string[] = []
@@ -628,82 +768,220 @@ export class BlockParser {
       attrLines.push(this.advance())
     }
 
-    const delimIdx = tableLines.findIndex((l) => isDelimiterRow(l))
-    const isGfm = delimIdx === 1
-
-    // §4.8: parse delim row with same helper so its trailing `##` comment can
-    // be attached to the head row and any stray `{attrs}` are diagnosed.
-    let delimComment: CommentInline | undefined
+    const tableReflection: Reflection[] = []
+    const rows: Row[] = []
     const columns: Column[] = []
-    if (isGfm) {
-      const delimLine = tableLines[delimIdx] || ''
-      const delimParsed = parseTableRowLine(delimLine)
-      if (delimParsed.attrGroups.length > 0) {
-        this.diagnostics.push({ code: 'CDN-0007', level: 'warning' })
-      }
-      delimComment = delimParsed.comment
-      for (const cell of delimParsed.cells) {
-        columns.push({ type: 'Column', align: parseColumnAlign(cell.trim()) })
+    let alignmentSet = false
+    let tableAttrsFromPlus: Attribute[] | null = null
+
+    type LineEntry =
+      | { kind: 'content'; cells: string[]; attrGroups: Attribute[][] }
+      | { kind: 'sep'; segments: string[]; isHeader: boolean; attrGroups: Attribute[][] }
+    const entries: LineEntry[] = []
+
+    for (let i = 0; i < tableLines.length; i++) {
+      const raw = tableLines[i] || ''
+      const line = raw.trimStart()
+      const docLine = tableDocLines[i] ?? 0
+
+      if (line.startsWith('+')) {
+        const { segments, isHeader, attrGroups, comment } = parseGridSeparatorLine(raw)
+        if (comment) tableReflection.push({ line: docLine, text: comment.text })
+        if (attrGroups.length > 0) {
+          const last = attrGroups[attrGroups.length - 1]
+          if (last && last.length > 0) tableAttrsFromPlus = last
+        }
+        entries.push({ kind: 'sep', segments, isHeader, attrGroups })
+      } else {
+        const { cells, attrGroups, comment } = parseTableRowLine(raw)
+        if (comment) tableReflection.push({ line: docLine, text: comment.text })
+        entries.push({ kind: 'content', cells, attrGroups })
       }
     }
 
-    const dataRows = tableLines.filter((_, i) => i !== delimIdx)
-    const rowsData = dataRows.map((l) => parseTableRowLine(l))
+    // Track row builders to apply scope chain to last content row
+    const rowBuilders: { attrGroups: Attribute[][]; row: Row }[] = []
+    let rowIndex = 0
 
-    const colCount = Math.max(...rowsData.map((r) => r.cells.length), 0)
-    if (!isGfm) {
+    for (const entry of entries) {
+      if (entry.kind === 'sep') {
+        if (entry.isHeader) {
+          for (const rb of rowBuilders) {
+            if (rb.row.type === 'Row') rb.row.type = 'Header'
+          }
+          if (!alignmentSet) {
+            for (const seg of entry.segments) {
+              columns.push({ type: 'Column', align: parseColumnAlign(seg.trim()) })
+            }
+            alignmentSet = true
+          }
+        }
+      } else {
+        const row: Row = {
+          type: 'Row',
+          children: entry.cells.map((cellText, colIdx) => {
+            const { nodes } = parseInlineText(cellText.trim())
+            return { type: 'Cell' as const, children: nodes, row: rowIndex, column: colIdx }
+          }),
+          attributes: [],
+        }
+        rowBuilders.push({ attrGroups: entry.attrGroups, row })
+        rows.push(row)
+        rowIndex++
+      }
+    }
+
+    if (!alignmentSet) {
+      const colCount = Math.max(...rows.map((r) => r.children.length), 0)
       for (let i = 0; i < colCount; i++) columns.push({ type: 'Column', align: 'left' })
     }
 
-    const rows: Row[] = rowsData.map((rd, rowIdx) => {
-      const row: Row = {
-        type: 'Row',
-        children: rd.cells.map((cellText, colIdx) => {
-          const { nodes } = parseInlineText(cellText.trim())
-          return { type: 'Cell' as const, children: nodes, row: rowIdx, column: colIdx }
-        }),
-        attributes: [],
-      }
-      if (rd.comment) row.comments = [rd.comment]
-      return row
-    })
+    const table: Table = { type: 'Table', kind: 'gfm', rows, columns, attributes: [] }
+    if (tableReflection.length > 0) table.reflection = tableReflection
 
-    let head: Row[] | undefined
-    let body: Row[] = rows
-    if (isGfm && rows.length > 0) {
-      head = rows[0] ? [rows[0]] : []
-      if (delimComment && rows[0]) {
-        rows[0].comments = [...(rows[0].comments ?? []), delimComment]
-      }
-      body = rows.slice(1)
-      body.forEach((r, i) =>
-        r.children.forEach((c) => {
-          c.row = i
-        })
-      )
+    // Apply scope chain for non-last content rows (attrs → row only)
+    for (let i = 0; i < rowBuilders.length - 1; i++) {
+      const rb = rowBuilders[i]!
+      if (rb.attrGroups.length > 0) distributeScopeChain(rb.attrGroups, [rb.row], this.diagnostics)
     }
-
-    const table: Table = {
-      type: 'Table',
-      kind: isGfm ? 'gfm' : 'simple',
-      head: head ?? [],
-      body,
-      columns,
-      attributes: [],
+    // Apply scope chain for last content row (last attr → table, preceding → row)
+    const lastRb = rowBuilders[rowBuilders.length - 1]
+    if (lastRb && lastRb.attrGroups.length > 0) {
+      distributeScopeChain(lastRb.attrGroups, [table, lastRb.row], this.diagnostics)
     }
+    // + row attrs override table attrs (last wins)
+    if (tableAttrsFromPlus !== null) table.attributes = tableAttrsFromPlus
 
-    const lastRowData = rowsData[rowsData.length - 1]
-    let groups: Attribute[][] = lastRowData?.attrGroups ?? []
+    // Extra trailing attr lines override
     if (attrLines.length > 0) {
       const { trailingAttrGroups, diagnostics } = parseInlineText(attrLines.join('\n'))
       this.diagnostics.push(...diagnostics)
-      groups = [...groups, ...trailingAttrGroups]
+      const last = trailingAttrGroups[trailingAttrGroups.length - 1]
+      if (last && last.length > 0) table.attributes = last
     }
 
-    const slots: unknown[] = [table]
-    if (rows.length > 0) slots.push(rows[rows.length - 1])
+    return table
+  }
 
-    distributeScopeChain(groups, slots, this.diagnostics)
+  private parseMultilineTable(): Table {
+    const tableLines: string[] = []
+    const tableDocLines: number[] = []
+
+    while (this.pos < this.lines.length) {
+      const raw = this.lines[this.pos] || ''
+      const line = raw.trimStart()
+      if (line.startsWith('|') || line.startsWith('+')) {
+        tableLines.push(raw)
+        tableDocLines.push(this.pos++)
+      } else break
+    }
+
+    const attrLines: string[] = []
+    while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
+      attrLines.push(this.advance())
+    }
+
+    const tableReflection: Reflection[] = []
+    const rows: Row[] = []
+    const columns: Column[] = []
+    let alignmentSet = false
+    let tableAttrsFromPlus: Attribute[] | null = null
+
+    type PhaseEntry =
+      | { kind: 'rowGroup'; lines: { cells: string[]; attrGroups: Attribute[][] }[] }
+      | { kind: 'headerSep'; segments: string[] }
+      | { kind: 'bodySep' }
+    const phaseEntries: PhaseEntry[] = []
+    let pendingLines: { cells: string[]; attrGroups: Attribute[][] }[] = []
+
+    for (let i = 0; i < tableLines.length; i++) {
+      const raw = tableLines[i] || ''
+      const line = raw.trimStart()
+      const docLine = tableDocLines[i] ?? 0
+
+      if (line.startsWith('+')) {
+        if (pendingLines.length > 0) {
+          phaseEntries.push({ kind: 'rowGroup', lines: pendingLines })
+          pendingLines = []
+        }
+        const { segments, isHeader, attrGroups, comment } = parseGridSeparatorLine(raw)
+        if (comment) tableReflection.push({ line: docLine, text: comment.text })
+        if (attrGroups.length > 0) {
+          const last = attrGroups[attrGroups.length - 1]
+          if (last && last.length > 0) tableAttrsFromPlus = last
+        }
+        if (isHeader) phaseEntries.push({ kind: 'headerSep', segments })
+        else phaseEntries.push({ kind: 'bodySep' })
+      } else {
+        const { cells, attrGroups, comment } = parseTableRowLine(raw)
+        if (comment) tableReflection.push({ line: docLine, text: comment.text })
+        pendingLines.push({ cells, attrGroups })
+      }
+    }
+    if (pendingLines.length > 0) phaseEntries.push({ kind: 'rowGroup', lines: pendingLines })
+
+    let rowIndex = 0
+    for (const entry of phaseEntries) {
+      if (entry.kind === 'headerSep') {
+        for (const r of rows) {
+          if (r.type === 'Row') r.type = 'Header'
+        }
+        if (!alignmentSet) {
+          for (const seg of entry.segments) {
+            columns.push({ type: 'Column', align: parseColumnAlign(seg.trim()) })
+          }
+          alignmentSet = true
+        }
+      } else if (entry.kind === 'rowGroup') {
+        const colCount = Math.max(...entry.lines.map((l) => l.cells.length), 0)
+        if (colCount === 0) continue
+
+        const colTexts: string[] = Array.from({ length: colCount }, () => '')
+        for (const line of entry.lines) {
+          for (let c = 0; c < colCount; c++) {
+            const cell = (line.cells[c] ?? '').trim()
+            if (cell) colTexts[c] = colTexts[c] ? colTexts[c] + ' ' + cell : cell
+          }
+        }
+
+        const row: Row = {
+          type: 'Row',
+          children: colTexts.map((text, colIdx) => {
+            const sub = new BlockParser([text], true)
+            const cellBlocks = sub.parseBlocks()
+            this.diagnostics.push(...sub.diagnostics)
+            return { type: 'Cell' as const, children: cellBlocks, row: rowIndex, column: colIdx }
+          }),
+          attributes: [],
+        }
+
+        // Row attrs come from the last | line's attrGroups
+        const lastLine = entry.lines[entry.lines.length - 1]
+        if (lastLine && lastLine.attrGroups.length > 0) {
+          distributeScopeChain(lastLine.attrGroups, [row], this.diagnostics)
+        }
+
+        rows.push(row)
+        rowIndex++
+      }
+    }
+
+    if (!alignmentSet) {
+      const colCount = Math.max(...rows.map((r) => r.children.length), 0)
+      for (let i = 0; i < colCount; i++) columns.push({ type: 'Column', align: 'left' })
+    }
+
+    const table: Table = { type: 'Table', kind: 'multiline', rows, columns, attributes: [] }
+    if (tableReflection.length > 0) table.reflection = tableReflection
+
+    if (tableAttrsFromPlus !== null) table.attributes = tableAttrsFromPlus
+
+    if (attrLines.length > 0) {
+      const { trailingAttrGroups, diagnostics } = parseInlineText(attrLines.join('\n'))
+      this.diagnostics.push(...diagnostics)
+      const last = trailingAttrGroups[trailingAttrGroups.length - 1]
+      if (last && last.length > 0) table.attributes = last
+    }
 
     return table
   }
@@ -1140,6 +1418,7 @@ export class BlockParser {
   // ── NamedBlock ────────────────────────────────────────────────────────────
 
   private parseNamedBlock() {
+    const docLine = this.pos
     const openLine = this.advance().trimStart()
     const rest = openLine.slice(3)
 
@@ -1155,17 +1434,19 @@ export class BlockParser {
     }
 
     const {
-      nodes: openerNodes,
       trailingAttrGroups,
       diagnostics: attrDiags,
+      comments: openerComments,
     } = parseInlineText(openerAttrLines.join('\n'))
     this.diagnostics.push(...attrDiags)
 
     const node: NamedBlock = { type: 'NamedBlock', name, children: [], attributes: [] }
     distributeScopeChain(trailingAttrGroups, [node], this.diagnostics)
 
-    // §2.6: CommentInline in the opener becomes first child(ren) of the body.
-    const openerComments = openerNodes.filter((n) => n.type === 'CommentInline')
+    if (openerComments.length > 0) {
+      node.reflection = openerComments.map((c) => ({ line: docLine + c.lineOffset, text: c.text }))
+    }
+
 
     const contentLines: string[] = []
     let closed = false
@@ -1206,9 +1487,6 @@ export class BlockParser {
     const sub = new BlockParser(stripped, true)
     node.children = sub.parseBlocks()
     this.diagnostics.push(...sub.diagnostics)
-    if (openerComments.length > 0) {
-      node.children = [...(openerComments as unknown as Block[]), ...node.children]
-    }
 
     return node
   }
@@ -1263,9 +1541,15 @@ export class BlockParser {
   // ── Paragraph ─────────────────────────────────────────────────────────────
 
   private parseParagraph() {
+    const startLine = this.pos
     const paraLines: string[] = []
     while (this.pos < this.lines.length && this.lines[this.pos]?.trim() !== '') {
-      if (paraLines.length > 0 && this.peek().trim().startsWith('{')) break
+      const peekTrimmed = this.peek().trimStart()
+      if (paraLines.length > 0 && peekTrimmed.startsWith('{')) break
+      // §2.2: standalone ## line breaks the paragraph; handled as inter-block reflection
+      if (peekTrimmed.startsWith('##') && !peekTrimmed.startsWith('###')) break
+      // §6.5: `^ ` line at block level is a potential caption — break paragraph here
+      if (paraLines.length > 0 && (peekTrimmed.startsWith('^ ') || peekTrimmed === '^')) break
       paraLines.push(this.lines[this.pos++] || '')
     }
 
@@ -1275,11 +1559,6 @@ export class BlockParser {
     }
 
     // §8.2: handle line-start block-opener escapes inside a paragraph context.
-    // Replace `\<marker>` with each marker char individually escaped (`\X\X\X…`),
-    // so the inline scanner emits literal marker chars without re-classifying
-    // them as inline delimiters (e.g. `::name` → Span). For multi-line
-    // paragraphs, also inject boundary spaces so the soft-break preserves a
-    // visible word break around the literal marker.
     const transformed: string[] = paraLines.map((l, idx) => (idx === 0 ? l : l.trimStart()))
     for (let i = 0; i < transformed.length; i++) {
       const t = transformed[i] || ''
@@ -1287,7 +1566,6 @@ export class BlockParser {
       if (!m) continue
       const marker = m[1] || ''
       const rest = t.slice(1 + marker.length)
-      // Escape each marker char so the inline scanner keeps them literal.
       let reEscaped = ''
       for (const c of marker) reEscaped += '\\' + c
       let line = reEscaped + rest
@@ -1300,7 +1578,7 @@ export class BlockParser {
 
     const joined = transformed.join('\n')
 
-    const { nodes, trailingAttrGroups, diagnostics } = parseInlineText(joined)
+    const { nodes, trailingAttrGroups, diagnostics, comments } = parseInlineText(joined)
     this.diagnostics.push(...diagnostics)
 
     let groups = trailingAttrGroups
@@ -1310,13 +1588,10 @@ export class BlockParser {
       groups = [...groups, ...pr.trailingAttrGroups]
     }
 
-    // §2.2: a Paragraph whose only child is a single CommentInline is replaced
-    // by the bare CommentInline at the surrounding scope (Page or container).
-    if (nodes.length === 1 && nodes[0]?.type === 'CommentInline' && groups.length === 0) {
-      return nodes[0] as unknown as Paragraph
-    }
-
     const node: Paragraph = { type: 'Paragraph', children: nodes, attributes: [] }
+    if (comments.length > 0) {
+      node.reflection = comments.map((c) => ({ line: startLine + c.lineOffset, text: c.text }))
+    }
     distributeScopeChain(groups, [nodes, node], this.diagnostics)
     return node
   }

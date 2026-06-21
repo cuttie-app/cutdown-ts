@@ -1,6 +1,13 @@
 import type { Attribute, Diagnostic } from './common.ts'
 import type { Inline } from './inline.ts'
 
+// ─── Reflection ───────────────────────────────────────────────────────────────
+
+export interface Reflection {
+  line: number
+  text: string
+}
+
 // ─── Document / Page ─────────────────────────────────────────────────────────
 
 export interface Document {
@@ -53,12 +60,14 @@ export interface Section {
   heading: Inline[]
   attributes: Attribute[]
   children: Block[]
+  reflection?: Reflection[]
 }
 
 export interface Paragraph {
   type: 'Paragraph'
   children: Inline[]
   attributes: Attribute[]
+  reflection?: Reflection[]
 }
 
 export interface ThematicBreak {
@@ -71,6 +80,8 @@ export interface CodeBlock {
   language: string
   raw: string
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface Meta {
@@ -83,6 +94,8 @@ export interface QuoteBlock {
   type: 'QuoteBlock'
   children: Block[]
   attributes: Attribute[]
+  attribution?: Inline[]
+  reflection?: Reflection[]
 }
 
 export type ListItemLike = ListItem | TaskItem
@@ -109,7 +122,7 @@ export interface TaskItem {
   attributes: Attribute[]
 }
 
-export type TableKind = 'simple' | 'gfm'
+export type TableKind = 'multiline' | 'gfm'
 export type ColumnAlign = 'left' | 'right' | 'center' | 'comma' | 'decimal'
 
 export interface Column {
@@ -119,25 +132,25 @@ export interface Column {
 
 export interface Cell {
   type: 'Cell'
-  children: Inline[]
+  children: Inline[] | Block[]
   row: number
   column: number
 }
 
 export interface Row {
-  type: 'Row'
+  type: 'Row' | 'Header'
   children: Cell[]
   attributes: Attribute[]
-  comments?: import('./inline.ts').CommentInline[]
 }
 
 export interface Table {
   type: 'Table'
   kind: TableKind
-  head: Row[]
-  body: Row[]
+  rows: Row[]
   columns: Column[]
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export type FileGroup = 'image' | 'video' | 'audio'
@@ -148,6 +161,8 @@ export interface FileRef {
   query: string
   fragment: string
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface ImageBlock {
@@ -155,6 +170,8 @@ export interface ImageBlock {
   alt: Inline[]
   src: string
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface FileRefGroup {
@@ -162,6 +179,8 @@ export interface FileRefGroup {
   group: FileGroup
   children: (FileRef | ImageBlock)[]
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface NamedBlock {
@@ -169,6 +188,8 @@ export interface NamedBlock {
   name: string
   children: Block[]
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface RefDefinition {
@@ -182,10 +203,14 @@ export interface MathBlock {
   type: 'MathBlock'
   raw: string
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }
 
 export interface SpoilerBlock {
   type: 'SpoilerBlock'
   children: Block[]
   attributes: Attribute[]
+  caption?: Inline[]
+  reflection?: Reflection[]
 }

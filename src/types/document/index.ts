@@ -16,7 +16,6 @@ export type {
   Variable,
   QuoteInline,
   Spoiler,
-  CommentInline,
 } from './inline.ts'
 export type {
   Block,
@@ -27,6 +26,7 @@ export type {
   TableKind,
   ColumnAlign,
   FileGroup,
+  Reflection,
   Section,
   Paragraph,
   ThematicBreak,

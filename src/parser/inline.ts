@@ -16,7 +16,6 @@ import type {
   QuoteInline,
   Spoiler,
   LinkKind,
-  CommentInline,
 } from '../types/document'
 import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
@@ -59,7 +58,7 @@ export function parseInlineText(text: string): InlineParseResult {
 
 /** Parse inline content from an array of lines (joined with \n internally). */
 export function parseInlineLines(lines: string[]): InlineParseResult {
-  if (lines.length === 0) return { nodes: [], trailingAttrGroups: [], diagnostics: [] }
+  if (lines.length === 0) return { nodes: [], trailingAttrGroups: [], diagnostics: [], comments: [] }
   return parseInlineText(lines.join('\n'))
 }
 
@@ -102,6 +101,8 @@ class InlineScanner {
   private pos: number = 0
   private nodes: Inline[] = []
   private trailingAttrGroups: Attribute[][] = []
+  private trailingAttrGroupsNodeCount: number = 0
+  private comments: { lineOffset: number; text: string }[] = []
   private diagnostics: Diagnostic[] = []
 
   constructor(text: string) {
@@ -113,14 +114,16 @@ class InlineScanner {
       this.step()
     }
     const merged = mergeText(this.nodes)
-    if (this.trailingAttrGroups.length > 0 && merged.length > 0) {
+    // Only trim trailing space from last Text when there are trailing attr groups
+    // AND no ## comment was encountered (## acts as an end-of-line barrier)
+    if (this.trailingAttrGroups.length > 0 && merged.length > 0 && this.comments.length === 0) {
       const last = merged[merged.length - 1] || { type: '' }
       if (last.type === 'Text') {
         ;(last as Text).value = (last as Text).value.trimEnd()
         if ((last as Text).value === '') merged.pop()
       }
     }
-    return { nodes: merged, trailingAttrGroups: this.trailingAttrGroups, diagnostics: this.diagnostics }
+    return { nodes: merged, trailingAttrGroups: this.trailingAttrGroups, diagnostics: this.diagnostics, comments: this.comments }
   }
 
   private ch(offset = 0): string | undefined {
@@ -136,13 +139,18 @@ class InlineScanner {
 
   private pushText(s: string): void {
     // §2.6: pure whitespace is transparent to trailing-attr resolution
-    if (this.trailingAttrGroups.length > 0 && s.trim() !== '') this.trailingAttrGroups = []
+    if (this.trailingAttrGroups.length > 0 && s.trim() !== '') {
+      this.trailingAttrGroups = []
+      this.trailingAttrGroupsNodeCount = 0
+    }
     this.nodes.push({ type: 'Text', value: s })
   }
 
   private pushNode(node: Inline): void {
-    // §2.6: CommentInline is transparent to trailing-attr resolution
-    if (this.trailingAttrGroups.length > 0 && node.type !== 'CommentInline') this.trailingAttrGroups = []
+    if (this.trailingAttrGroups.length > 0) {
+      this.trailingAttrGroups = []
+      this.trailingAttrGroupsNodeCount = 0
+    }
     this.nodes.push(node)
   }
 
@@ -236,14 +244,29 @@ class InlineScanner {
   }
 
   private emitCommentInline(): void {
-    // pos is at first '#' of '##'. Consume '##' and capture chars to next '\n'.
-    this.pos += 2
+    // Count newlines before current pos to get line offset within the scanned text
+    let lineOffset = 0
+    for (let i = 0; i < this.pos; i++) {
+      if (this.chars[i] === '\n') lineOffset++
+    }
+
+    // If trailing attr groups are active, pop any transparent whitespace nodes
+    // that were pushed between the last attr group and the ## marker
+    if (this.trailingAttrGroups.length > 0) {
+      while (this.nodes.length > this.trailingAttrGroupsNodeCount) {
+        const last = this.nodes[this.nodes.length - 1]
+        if (last?.type === 'Text' && (last as Text).value.trim() === '') {
+          this.nodes.pop()
+        } else break
+      }
+    }
+
+    this.pos += 2 // skip ##
     let text = ''
     while (this.pos < this.chars.length && this.chars[this.pos] !== '\n') {
       text += this.chars[this.pos++]
     }
-    const node: CommentInline = { type: 'CommentInline', text }
-    this.pushNode(node)
+    this.comments.push({ lineOffset, text: text.trimStart() })
   }
 
   private tryCodeInline(): boolean {
@@ -568,6 +591,7 @@ class InlineScanner {
     if (attrs.length === 0) {
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push([])
+      this.trailingAttrGroupsNodeCount = this.nodes.length
       return true
     }
 
@@ -580,8 +604,8 @@ class InlineScanner {
       }
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
-      // §12: strip trailing whitespace from preceding Text now that attrs are consumed.
-      this.trimTrailingTextWhitespace()
+      this.trailingAttrGroupsNodeCount = this.nodes.length
+      // Trimming of preceding whitespace is deferred to scan() (skipped if ## present)
       return true
     }
 
@@ -598,7 +622,8 @@ class InlineScanner {
     } else {
       this.diagnostics.push(...diagnostics)
       this.trailingAttrGroups.push(attrs)
-      this.trimTrailingTextWhitespace()
+      this.trailingAttrGroupsNodeCount = this.nodes.length
+      // Trimming of preceding whitespace is deferred to scan() (skipped if ## present)
     }
     return true
   }
@@ -626,7 +651,7 @@ class InlineScanner {
       }
       // Another {…} attr block is not "real" content
       if (c === '{' && this.chars[i + 1] !== '{') return false
-      // §2.6: CommentInline is transparent — skip `## … <EOL>`
+      // §2.6: `##` is transparent to attr resolution — skip to EOL
       if (c === '#' && this.chars[i + 1] === '#') {
         i += 2
         while (i < this.chars.length && this.chars[i] !== '\n') i++
