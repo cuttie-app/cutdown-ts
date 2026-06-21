@@ -18,7 +18,6 @@ export function isListMarkerLine(line: string): boolean {
 
 // ─── Table helpers ────────────────────────────────────────────────────────────
 
-
 /** Returns true if a `+…+` row is a header separator (contains `:` anywhere) */
 export function isHeaderSeparatorRow(line: string): boolean {
   const t = line.trimStart()

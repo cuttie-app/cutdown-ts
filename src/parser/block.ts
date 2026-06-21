@@ -251,7 +251,9 @@ const processBlocks = (blocks: Block[]): Block[] => {
 
 // ─── Table row helper ─────────────────────────────────────────────────────────
 
-const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribute[][]; comment?: { text: string } } => {
+const parseTableRowLine = (
+  line: string
+): { cells: string[]; attrGroups: Attribute[][]; comment?: { text: string } } => {
   const trimmed = line.trim()
   let comment: { text: string } | undefined
   let work = trimmed
@@ -267,7 +269,9 @@ const parseTableRowLine = (line: string): { cells: string[]; attrGroups: Attribu
 }
 
 /** Parse a `+…+` separator line: extract comment, attrGroups, and column segments */
-const parseGridSeparatorLine = (line: string): { segments: string[]; isHeader: boolean; attrGroups: Attribute[][]; comment?: { text: string } } => {
+const parseGridSeparatorLine = (
+  line: string
+): { segments: string[]; isHeader: boolean; attrGroups: Attribute[][]; comment?: { text: string } } => {
   const trimmed = line.trim()
   let work = trimmed
   let comment: { text: string } | undefined
@@ -352,8 +356,15 @@ export class BlockParser {
     const blocks: (Block | RefDefinition)[] = []
 
     const CAPTIONABLE = new Set([
-      'Table', 'ImageBlock', 'CodeBlock', 'MathBlock',
-      'FileRef', 'FileRefGroup', 'NamedBlock', 'SpoilerBlock', 'QuoteBlock',
+      'Table',
+      'ImageBlock',
+      'CodeBlock',
+      'MathBlock',
+      'FileRef',
+      'FileRefGroup',
+      'NamedBlock',
+      'SpoilerBlock',
+      'QuoteBlock',
     ])
 
     const addReflection = (block: Block, entry: Reflection) => {
@@ -428,7 +439,11 @@ export class BlockParser {
           const captionRaw = captionLine.slice(2)
 
           // CDN-0009: trailing {attrs} on caption line → literal text + warning
-          const { nodes: captionNodes, comments: captionComments, trailingAttrGroups: captionAttrGroups } = parseInlineText(captionRaw)
+          const {
+            nodes: captionNodes,
+            comments: captionComments,
+            trailingAttrGroups: captionAttrGroups,
+          } = parseInlineText(captionRaw)
 
           if (captionAttrGroups.some((g) => g.length > 0)) {
             this.diagnostics.push({ code: 'CDN-0009', level: 'warning' })
@@ -1446,7 +1461,6 @@ export class BlockParser {
     if (openerComments.length > 0) {
       node.reflection = openerComments.map((c) => ({ line: docLine + c.lineOffset, text: c.text }))
     }
-
 
     const contentLines: string[] = []
     let closed = false

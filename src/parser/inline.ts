@@ -123,7 +123,12 @@ class InlineScanner {
         if ((last as Text).value === '') merged.pop()
       }
     }
-    return { nodes: merged, trailingAttrGroups: this.trailingAttrGroups, diagnostics: this.diagnostics, comments: this.comments }
+    return {
+      nodes: merged,
+      trailingAttrGroups: this.trailingAttrGroups,
+      diagnostics: this.diagnostics,
+      comments: this.comments,
+    }
   }
 
   private ch(offset = 0): string | undefined {

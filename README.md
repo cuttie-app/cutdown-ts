@@ -223,22 +223,22 @@ result.walk({
 
 #### Inline nodes
 
-| Type            | Key fields                                                                             |
-| --------------- | -------------------------------------------------------------------------------------- |
-| `Text`          | `value: string`                                                                        |
-| `Emphasis`      | `children: Inline[]`, `attributes`                                                     |
-| `Strong`        | `children: Inline[]`, `attributes`                                                     |
-| `Strikethrough` | `children: Inline[]`, `attributes`                                                     |
-| `CodeInline`    | `value: string`, `attributes`                                                          |
-| `TextBreak`     | _(no fields)_                                                                          |
-| `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes` |
-| `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                           |
-| `Span`          | `name: string`, `children: Inline[]`, `attributes`                                     |
-| `MathInline`    | `formula: string`, `attributes`                                                        |
-| `Variable`      | `key: string`, `attributes`                                                            |
-| `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                       |
+| Type            | Key fields                                                                                   |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| `Text`          | `value: string`                                                                              |
+| `Emphasis`      | `children: Inline[]`, `attributes`                                                           |
+| `Strong`        | `children: Inline[]`, `attributes`                                                           |
+| `Strikethrough` | `children: Inline[]`, `attributes`                                                           |
+| `CodeInline`    | `value: string`, `attributes`                                                                |
+| `TextBreak`     | _(no fields)_                                                                                |
+| `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes`       |
+| `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                                 |
+| `Span`          | `name: string`, `children: Inline[]`, `attributes`                                           |
+| `MathInline`    | `formula: string`, `attributes`                                                              |
+| `Variable`      | `key: string`, `attributes`                                                                  |
+| `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                             |
 | `Spoiler`       | `children: Inline[]`, `attributes` — `^^…^^` delimited; rendering chosen by consumer (§5.12) |
-| `CommentInline` | `text: string` — line comment opened by `##`, runs to EOL (§2.2)                       |
+| `CommentInline` | `text: string` — line comment opened by `##`, runs to EOL (§2.2)                             |
 
 #### Discriminant unions
 
