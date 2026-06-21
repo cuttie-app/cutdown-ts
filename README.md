@@ -58,7 +58,7 @@ ast:
 
 ## Specification
 
-[Quick reference → `SYNTAX.md`](Shttps://github.com/cuttie-app/cutdown-spec/blob/main/SYNTAX.md) · [Full spec → `spec/TOC.md`](https://github.com/cuttie-app/cutdown-spec/blob/main/spec/TOC.md)
+[Quick reference → `SYNTAX.md`](https://github.com/cuttie-app/cutdown-spec/blob/main/SYNTAX.md) · [Full spec → `spec/TOC.md`](https://github.com/cuttie-app/cutdown-spec/blob/main/spec/TOC.md)
 
 The parser behavior is governed by the [Cutdown ML Specification](https://github.com/cuttie-app/cutdown-spec). For conformance details, versioning policy, and diagnostic codes, refer to the spec repository.
 
