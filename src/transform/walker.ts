@@ -123,8 +123,7 @@ function visitBlock(node: Block, v: V): Block | undefined {
         const r = v.Column?.(col)
         if (r !== undefined) Object.assign(col, r)
       }
-      if (table.head) visitRows(table.head, v)
-      visitRows(table.body, v)
+      visitRows(table.rows, v)
       return v.Table?.(table) as Block | undefined
     }
     case 'FileRefGroup': {
@@ -189,7 +188,11 @@ function visitListItem(item: List['children'][number], v: V): void {
 function visitRows(rows: Row[], v: V): void {
   for (const row of rows) {
     for (const cell of row.children) {
-      visitInlines(cell.children, v)
+      if (cell.children.length > 0 && isBlock(cell.children[0] as Block | Inline)) {
+        visitBlocks(cell.children as Block[], v)
+      } else {
+        visitInlines(cell.children as Inline[], v)
+      }
       v.Cell?.(cell as Cell)
     }
     v.Row?.(row)
