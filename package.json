@@ -1,6 +1,6 @@
 {
   "name": "cutdown-parser",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Cutdown markup language parser in TypeScript",
   "keywords": [
     "AST",
