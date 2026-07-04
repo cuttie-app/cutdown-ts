@@ -14,10 +14,12 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
 
   const inner = raw.trim()
   if (!inner.startsWith('{') || !inner.endsWith('}')) {
-    return { attrs: [], diagnostics }
+    return { attrs: [], diagnostics, valid: false }
   }
   const content = inner.slice(1, -1).trim()
-  if (content === '') return { attrs: [], diagnostics }
+  if (content === '') return { attrs: [], diagnostics, valid: true }
+
+  let valid = true
 
   const result: Attribute[] = []
   let classPlaceholderIdx = -1
@@ -39,7 +41,10 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
       const start = i
       while (i < content.length && isIdChar(content[i] || '')) i++
       const id = content.slice(start, i)
-      if (id === '') continue
+      if (id === '') {
+        valid = false
+        continue
+      }
       if (seenId) {
         diagnostics.push({ code: 'CDN-0020', level: 'warning' })
         continue
@@ -51,7 +56,10 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
       const start = i
       while (i < content.length && isIdChar(content[i] || '')) i++
       const cls = content.slice(start, i)
-      if (cls === '') continue
+      if (cls === '') {
+        valid = false
+        continue
+      }
       hasClassDot = true
       if (classPlaceholderIdx === -1) {
         classPlaceholderIdx = result.length
@@ -66,6 +74,7 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
         i++
         continue
       }
+      if (!/^[a-zA-Z0-9._-]+$/.test(key)) valid = false
 
       if (i < content.length && content[i] === '=') {
         i++
@@ -76,6 +85,7 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
           while (i < content.length && content[i] !== '"') i++
           value = content.slice(vs, i)
           if (i < content.length) i++
+          else valid = false
         } else {
           const vs = i
           while (i < content.length && content[i] !== ' ') i++
@@ -121,7 +131,7 @@ export function parseAttrBlock(raw: string): AttrsParseResult {
     return !(a.key === 'class' && Array.isArray(a.value) && (a.value as string[]).length === 0)
   })
 
-  return { attrs: finalResult, diagnostics }
+  return { attrs: finalResult, diagnostics, valid }
 }
 
 /**

@@ -20,4 +20,6 @@ export type Attribute =
 export interface AttrsParseResult {
   attrs: Attribute[]
   diagnostics: Diagnostic[]
+  /** False when the block content violates the attribute grammar (§9.4.1 literal-span idiom) */
+  valid: boolean
 }

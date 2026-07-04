@@ -3,8 +3,14 @@ import type { Inline } from './inline.ts'
 
 // ─── Reflection ───────────────────────────────────────────────────────────────
 
+export interface Loc {
+  start: number
+  end: number
+}
+
 export interface Reflection {
-  line: number
+  /** Source range of the `##` payload — raw-file UTF-16 code-unit offsets, end-exclusive */
+  loc?: Loc
   text: string
 }
 
@@ -32,7 +38,7 @@ export interface ParseResult {
 export type Block =
   | Section
   | Paragraph
-  | ThematicBreak
+  | PageBreak
   | CodeBlock
   | Meta
   | QuoteBlock
@@ -70,9 +76,12 @@ export interface Paragraph {
   reflection?: Reflection[]
 }
 
-export interface ThematicBreak {
-  type: 'ThematicBreak'
-  attributes: Attribute[]
+/**
+ * Internal pagination marker for a top-level `---` line. Consumed by the
+ * pagination fold — it never appears in the emitted Document tree.
+ */
+export interface PageBreak {
+  type: 'PageBreak'
 }
 
 export interface CodeBlock {
@@ -122,7 +131,7 @@ export interface TaskItem {
   attributes: Attribute[]
 }
 
-export type TableKind = 'multiline' | 'gfm'
+export type TableKind = 'multiline' | 'pipe'
 export type ColumnAlign = 'left' | 'right' | 'center' | 'comma' | 'decimal'
 
 export interface Column {

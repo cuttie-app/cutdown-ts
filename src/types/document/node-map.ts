@@ -1,7 +1,6 @@
 import type {
   Section,
   Paragraph,
-  ThematicBreak,
   CodeBlock,
   Meta,
   QuoteBlock,
@@ -25,7 +24,7 @@ import type {
   Text,
   Emphasis,
   Strong,
-  Strikethrough,
+  Highlight,
   CodeInline,
   TextBreak,
   Link,
@@ -51,7 +50,6 @@ export type NodeMap = {
   // ── Block nodes ───────────────────────────────────────────────────────────
   Section: Section
   Paragraph: Paragraph
-  ThematicBreak: ThematicBreak
   CodeBlock: CodeBlock
   Meta: Meta
   QuoteBlock: QuoteBlock
@@ -74,7 +72,7 @@ export type NodeMap = {
   Text: Text
   Emphasis: Emphasis
   Strong: Strong
-  Strikethrough: Strikethrough
+  Highlight: Highlight
   CodeInline: CodeInline
   TextBreak: TextBreak
   Link: Link

@@ -18,10 +18,18 @@ export function isListMarkerLine(line: string): boolean {
 
 // ─── Table helpers ────────────────────────────────────────────────────────────
 
-/** Returns true if a `+…+` row is a header separator (contains `:` anywhere) */
+/**
+ * §4.8: a header separator is a `|` row whose every cell is an alignment
+ * pattern — optional `:` prefix, ≥ 3 dashes, optional `:` / `,` / `.` suffix —
+ * optionally space-padded. `| - |` placeholder rows fail the 3-dash guard and
+ * stay content.
+ */
 export function isHeaderSeparatorRow(line: string): boolean {
-  const t = line.trimStart()
-  return t.startsWith('+') && t.includes(':')
+  const t = line.trim()
+  if (!t.startsWith('|') || !t.endsWith('|') || t.length < 2) return false
+  const cells = t.slice(1, -1).split('|')
+  if (cells.length === 0) return false
+  return cells.every((c) => /^ *:?-{3,}[:,.]? *$/.test(c))
 }
 
 /** Split a `+…+` separator row into column segments (between `+` delimiters) */
@@ -62,30 +70,63 @@ export function detectFileGroup(src: string): FileGroup | undefined {
 
 // ─── Input normalisation ──────────────────────────────────────────────────────
 
+export interface NormalizedInput {
+  lines: string[]
+  /** Raw-file UTF-16 code-unit offset of each line's first character (spec §7) */
+  lineStarts: number[]
+}
+
 /**
- * Normalize raw input into an array of lines that are ready for block parsing.
+ * Interpret raw input as an array of lines ready for block parsing, keeping the
+ * raw-file offset of each line so `loc` values index the original text.
  *
- * Steps per spec §2:
- *  1. Strip UTF-8 BOM
- *  2. Replace null bytes with U+FFFD
- *  3. Normalize line endings to \n; ensure trailing \n (spec §2.5)
- *  4. Replace tabs with a single space (outside fences — handled lazily here)
- *  5. Filter comment lines (first non-whitespace char is #)
+ * Interpretive rules per spec §7 (the source text is never rewritten):
+ *  1. A leading BOM is skipped (first content offset = 1)
+ *  2. `\r\n` and lone `\r` are line terminators
+ *  3. U+0000 is treated as U+FFFD; a tab is treated as one space (length-preserving)
+ *  4. Document-edge blank lines are skipped by the block phase
  */
-export function normalize(input: string): string[] {
-  let s = input.startsWith('\uFEFF') ? input.slice(1) : input
-  s = s.replace(/\0/g, '\uFFFD')
-  s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
-  if (!s.endsWith('\n')) s += '\n'
-  s = s.replace(/\t/g, ' ')
-  const raw = s.split('\n')
-  if (raw.length > 0 && raw[raw.length - 1] === '') raw.pop()
-  // \u00A77.6: strip document-edge blank lines (whitespace-only)
+export function normalize(input: string): NormalizedInput {
+  let pos = input.startsWith('\uFEFF') ? 1 : 0
+  const lines: string[] = []
+  const lineStarts: number[] = []
+
+  let lineStart = pos
+  let buf = ''
+  const flush = (nextStart: number) => {
+    lines.push(buf)
+    lineStarts.push(lineStart)
+    buf = ''
+    lineStart = nextStart
+  }
+  while (pos < input.length) {
+    const c = input[pos]
+    if (c === '\n') {
+      flush(pos + 1)
+      pos++
+    } else if (c === '\r') {
+      const skip = input[pos + 1] === '\n' ? 2 : 1
+      flush(pos + skip)
+      pos += skip
+    } else if (c === '\0') {
+      buf += '\uFFFD'
+      pos++
+    } else if (c === '\t') {
+      buf += ' '
+      pos++
+    } else {
+      buf += c
+      pos++
+    }
+  }
+  if (buf !== '') flush(pos)
+
+  // §7.6: document-edge blank lines are skipped by the block phase
   let start = 0
-  while (start < raw.length && (raw[start] ?? '').trim() === '') start++
-  let end = raw.length
-  while (end > start && (raw[end - 1] ?? '').trim() === '') end--
-  return raw.slice(start, end)
+  while (start < lines.length && (lines[start] ?? '').trim() === '') start++
+  let end = lines.length
+  while (end > start && (lines[end - 1] ?? '').trim() === '') end--
+  return { lines: lines.slice(start, end), lineStarts: lineStarts.slice(start, end) }
 }
 
 // Re-export AttrsParseResult so callers of utils don't need a separate import

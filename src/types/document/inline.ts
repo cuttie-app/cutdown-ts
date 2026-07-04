@@ -17,7 +17,7 @@ export type Inline =
   | Text
   | Emphasis
   | Strong
-  | Strikethrough
+  | Highlight
   | CodeInline
   | TextBreak
   | Link
@@ -47,8 +47,8 @@ export interface Strong {
   attributes: Attribute[]
 }
 
-export interface Strikethrough {
-  type: 'Strikethrough'
+export interface Highlight {
+  type: 'Highlight'
   children: Inline[]
   attributes: Attribute[]
 }

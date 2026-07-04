@@ -6,7 +6,7 @@ import type {
   Text,
   Emphasis,
   Strong,
-  Strikethrough,
+  Highlight,
   CodeInline,
   Link,
   ImageInline,
@@ -201,15 +201,15 @@ class InlineScanner {
     }
 
     if (c === '*' && this.ch(1) === '*') {
-      if (this.tryDelimited('**', 'Emphasis')) return
+      if (this.tryDelimited('**', 'Strong')) return
     }
 
     if (c === '_' && this.ch(1) === '_') {
-      if (this.tryDelimited('__', 'Strong')) return
+      if (this.tryDelimited('__', 'Emphasis')) return
     }
 
     if (c === '~' && this.ch(1) === '~') {
-      if (this.tryDelimited('~~', 'Strikethrough')) return
+      if (this.tryDelimited('~~', 'Highlight')) return
     }
 
     if (c === '^' && this.ch(1) === '^') {
@@ -401,8 +401,8 @@ class InlineScanner {
       case 'Strong':
         node = { type: 'Strong', children, ...(attrs ? { attributes: attrs } : {}) } as Strong
         break
-      case 'Strikethrough':
-        node = { type: 'Strikethrough', children, ...(attrs ? { attributes: attrs } : {}) } as Strikethrough
+      case 'Highlight':
+        node = { type: 'Highlight', children, ...(attrs ? { attributes: attrs } : {}) } as Highlight
         break
       case 'Spoiler':
         node = { type: 'Spoiler', children, ...(attrs ? { attributes: attrs } : {}) } as Spoiler
@@ -418,21 +418,41 @@ class InlineScanner {
     return true
   }
 
+  /**
+   * §9.4.1 Class 2 (asymmetric opener) degradation: the entire source from the
+   * opener to end of line (or to an `##`-cut) is one verbatim Text run. Closed
+   * constructs inside the dead slice are lost.
+   */
+  private emitVerbatimSlice(start: number): void {
+    let end = start
+    while (end < this.chars.length) {
+      const c = this.chars[end]
+      if (c === '\n') break
+      if (c === '\\') {
+        end += 2
+        continue
+      }
+      if (c === '#' && this.chars[end + 1] === '#') break
+      end++
+    }
+    if (end > this.chars.length) end = this.chars.length
+    this.pos = end
+    this.pushText(this.chars.slice(start, end).join(''))
+  }
+
   private tryImageInline(): boolean {
     const start = this.pos
     this.pos += 2
 
     const altChars = this.readBracketContent()
     if (altChars === null || this.ch() !== '(') {
-      this.pos = start + 1
-      this.pushText('!')
+      this.emitVerbatimSlice(start)
       return true
     }
     this.pos++
     const src = this.readUntil(')')
     if (src === null) {
-      this.pos = start + 1
-      this.pushText('!')
+      this.emitVerbatimSlice(start)
       return true
     }
     this.pos++
@@ -456,8 +476,7 @@ class InlineScanner {
 
     const textChars = this.readBracketContent()
     if (textChars === null) {
-      this.pos = start + 1
-      this.pushText('[')
+      this.emitVerbatimSlice(start)
       return true
     }
 
@@ -555,11 +574,16 @@ class InlineScanner {
       key += this.chars[this.pos++]
     }
     const trimmedKey = key.trim()
-    if (!closed || trimmedKey === '' || !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
+    if (!closed) {
+      // Class 2 opener with no closer: verbatim slice to EOL / ##-cut
+      this.emitVerbatimSlice(start)
+      return true
+    }
+    if (trimmedKey === '' || !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
       const raw = this.chars.slice(start, this.pos).join('')
       if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
-      // Emit CDN-0015 only if closed and key has non-ID_LITERAL characters (not for empty key)
-      if (closed && trimmedKey !== '' && !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
+      // Emit CDN-0015 only if the key has non-ID_LITERAL characters (not for empty key)
+      if (trimmedKey !== '' && !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
         this.diagnostics.push({ code: 'CDN-0015', level: 'warning' })
       }
       this.nodes.push({ type: 'Text', value: raw })
@@ -589,7 +613,18 @@ class InlineScanner {
   private tryInlineAttrs(): boolean {
     const savedPos = this.pos
     const r = this.readAttrBlock()
-    if (!r) return false
+    if (!r) {
+      // `{` with no matching `}` is a Class 2 opener: verbatim slice to EOL / ##-cut
+      this.emitVerbatimSlice(savedPos)
+      return true
+    }
+
+    if (!r.valid) {
+      // §9.4.1 literal-span idiom: a closed { } whose content violates the attribute
+      // grammar is one verbatim Text run (braces included), never inline-parsed.
+      this.pushText(r.raw)
+      return true
+    }
 
     const { attrs, diagnostics } = r
 
@@ -711,7 +746,7 @@ class InlineScanner {
     return null
   }
 
-  private readAttrBlock(): { attrs: Attribute[]; diagnostics: Diagnostic[] } | null {
+  private readAttrBlock(): { attrs: Attribute[]; diagnostics: Diagnostic[]; valid: boolean; raw: string } | null {
     if (this.ch() !== '{') return null
     let depth = 0
     let end = this.pos
@@ -729,6 +764,6 @@ class InlineScanner {
     if (depth !== 0) return null
     const raw = this.chars.slice(this.pos, end).join('')
     this.pos = end
-    return parseAttrBlock(raw)
+    return { ...parseAttrBlock(raw), raw }
   }
 }

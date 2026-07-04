@@ -14,8 +14,8 @@ import type { NodeMap } from '../types/document'
  * To enrich the AST with plugins, wrap with `pipeline()` from `@cutdown/transform`.
  */
 export function parse(input: string): ASTResult<NodeMap> {
-  const lines = normalize(input)
-  const parser = new BlockParser(lines)
+  const { lines, lineStarts } = normalize(input)
+  const parser = new BlockParser(lines, false, lineStarts)
   const ast = parser.parseDocument()
   return new ASTResult(ast, parser.diagnostics)
 }

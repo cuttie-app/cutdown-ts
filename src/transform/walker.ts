@@ -20,7 +20,7 @@ import type {
   Inline,
   Emphasis,
   Strong,
-  Strikethrough,
+  Highlight,
   Link,
   ImageInline,
   Span,
@@ -52,9 +52,9 @@ function visitInline(node: Inline, v: V): Inline | undefined {
       visitInlines((node as Strong).children, v)
       return v.Strong?.(node as Strong) as Inline | undefined
     }
-    case 'Strikethrough': {
-      visitInlines((node as Strikethrough).children, v)
-      return v.Strikethrough?.(node as Strikethrough) as Inline | undefined
+    case 'Highlight': {
+      visitInlines((node as Highlight).children, v)
+      return v.Highlight?.(node as Highlight) as Inline | undefined
     }
     case 'Link': {
       visitInlines((node as Link).children, v)
@@ -153,8 +153,6 @@ function visitBlock(node: Block, v: V): Block | undefined {
       visitInlines((node as ImageBlock).alt, v)
       return v.ImageBlock?.(node as ImageBlock) as Block | undefined
     }
-    case 'ThematicBreak':
-      return v.ThematicBreak?.(node) as Block | undefined
     case 'CodeBlock':
       return v.CodeBlock?.(node) as Block | undefined
     case 'Meta':
@@ -203,7 +201,6 @@ function isBlock(node: Block | Inline): boolean {
   const blockTypes = new Set([
     'Section',
     'Paragraph',
-    'ThematicBreak',
     'CodeBlock',
     'Meta',
     'QuoteBlock',
