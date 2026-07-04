@@ -15,7 +15,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
-import yaml from 'js-yaml'
+import { load as yamlLoad } from 'js-yaml'
 import { parse } from '../index.ts'
 
 // ─── Paths ────────────────────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ function loadFixtures(): Fixture[] {
         }
         return _m
       })
-      const doc = yaml.load(fixed) as Fixture
+      const doc = yamlLoad(fixed) as Fixture
       if (doc && doc.id) fixtures.push(doc)
     }
   }
