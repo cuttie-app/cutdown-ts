@@ -25,7 +25,7 @@ describe('ASTResult.walk()', () => {
   })
 
   it('visits nodes exit-first (children before parent)', () => {
-    const result = parse('**italic text**')
+    const result = parse('__italic text__')
     const order: string[] = []
     result.walk({
       Text: (node) => {
