@@ -50,9 +50,18 @@ export const SPECIAL_CHARS = new Set([
 
 // ─── Public parse helpers ─────────────────────────────────────────────────────
 
+export interface InlineParseOptions {
+  /**
+   * §12.1: apply the block-line trailing-space rule — runs collapse to a single
+   * space, preserved before a soft break and dropped at the block boundary.
+   * Only paragraph-like content is scanned as block lines.
+   */
+  blockLines?: boolean
+}
+
 /** Parse inline content from a (possibly multi-line) string. */
-export function parseInlineText(text: string): InlineParseResult {
-  const scanner = new InlineScanner(text)
+export function parseInlineText(text: string, options?: InlineParseOptions): InlineParseResult {
+  const scanner = new InlineScanner(text, options)
   return scanner.scan()
 }
 
@@ -103,16 +112,24 @@ class InlineScanner {
   private trailingAttrGroups: Attribute[][] = []
   private trailingAttrGroupsNodeCount: number = 0
   private comments: { lineOffset: number; text: string }[] = []
+  /** §2.2: a `##` cut ended the current line, so it owns the line's trailing spaces. */
+  private lineHasComment: boolean = false
   private diagnostics: Diagnostic[] = []
 
-  constructor(text: string) {
+  private readonly blockLines: boolean
+
+  constructor(text: string, options?: InlineParseOptions) {
     this.chars = [...text]
+    this.blockLines = options?.blockLines ?? false
   }
 
   scan(): InlineParseResult {
     while (this.pos < this.chars.length) {
       this.step()
     }
+    // §12.1: trailing spaces are dropped at a block boundary (end of input),
+    // unless a `##` cut already closed the line (§2.2 barrier).
+    if (this.blockLines && !this.lineHasComment) this.collapseTrailingSpaces(false)
     const merged = mergeText(this.nodes)
     // Only trim trailing space from last Text when there are trailing attr groups
     // AND no ## comment was encountered (## acts as an end-of-line barrier)
@@ -151,6 +168,32 @@ class InlineScanner {
     this.nodes.push({ type: 'Text', value: s })
   }
 
+  /**
+   * §12.1: collapse a run of trailing spaces on a block line. `keepOne` preserves
+   * a single space (soft break); otherwise the run is dropped (block boundary).
+   */
+  private collapseTrailingSpaces(keepOne: boolean): void {
+    let stripped = false
+    while (this.nodes.length > 0) {
+      const last = this.nodes[this.nodes.length - 1]
+      if (last?.type !== 'Text') break
+      const value = (last as Text).value
+      const trimmed = value.replace(/[ \t]+$/, '')
+      if (trimmed === value) break
+      stripped = true
+      if (trimmed === '') {
+        this.nodes.pop()
+        if (this.trailingAttrGroupsNodeCount > this.nodes.length) {
+          this.trailingAttrGroupsNodeCount = this.nodes.length
+        }
+        continue
+      }
+      ;(last as Text).value = trimmed
+      break
+    }
+    if (stripped && keepOne) this.nodes.push({ type: 'Text', value: ' ' })
+  }
+
   private pushNode(node: Inline): void {
     if (this.trailingAttrGroups.length > 0) {
       this.trailingAttrGroups = []
@@ -184,6 +227,10 @@ class InlineScanner {
 
     if (c === '\n') {
       this.pos++
+      // §12.1: trailing spaces collapse to a single space, which is preserved
+      // before a soft break as an explicit word-boundary separator.
+      if (this.blockLines) this.collapseTrailingSpaces(true)
+      this.lineHasComment = false
       return
     }
 
@@ -265,6 +312,11 @@ class InlineScanner {
         } else break
       }
     }
+
+    // §12.1: spaces before the `##` cut are the line's trailing spaces —
+    // collapse them to the single word-boundary space.
+    this.collapseTrailingSpaces(true)
+    this.lineHasComment = true
 
     this.pos += 2 // skip ##
     let text = ''

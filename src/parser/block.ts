@@ -85,6 +85,17 @@ const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnost
 
 const isRefDefinition = (b: Block): b is RefDefinition => b.type === 'RefDefinition'
 
+/**
+ * §4.9: an `![…](…)` line is an ImageBlock only when the image is the line's
+ * only segment — nothing may follow it but trailing `{attrs}`.
+ */
+const isOnlySegmentImageLine = (line: string): boolean => {
+  const m = line.match(/^!\[([^\]]*)]\(([^)]*)\)(.*)?$/)
+  if (!m) return false
+  const rest = (m[3] ?? '').trim()
+  return rest === '' || rest.startsWith('{')
+}
+
 const isBlockType = (type: string): boolean => {
   return [
     'Section',
@@ -585,7 +596,12 @@ export class BlockParser {
       return this.parseParagraph()
     }
     if (line.startsWith('>')) return this.parseQuoteBlock()
-    if (line.startsWith('![')) return this.parseImageBlock()
+    if (line.startsWith('![')) {
+      // §4.9: classification is provisional — an image line carrying anything
+      // other than trailing {attrs} fails the only-segment rule and falls back
+      // to a Paragraph with an ImageInline.
+      return isOnlySegmentImageLine(line) ? this.parseImageBlock() : this.parseParagraph()
+    }
     if (line.startsWith('/')) return this.parseFileRef()
     if (line.startsWith('[^')) return this.parseRefDefinition()
 
@@ -1223,7 +1239,12 @@ export class BlockParser {
     } else if (firstStripped.startsWith('- [ ] ')) {
       markerLen = 6
       checked = false
-    } else if (firstStripped.startsWith('- [x] ') || firstStripped.startsWith('- [X] ')) {
+    } else if (
+      firstStripped.startsWith('- [x] ') ||
+      firstStripped.startsWith('- [X] ') ||
+      // §4.7.2: `[+]` is the bidi-neutral checked marker
+      firstStripped.startsWith('- [+] ')
+    ) {
       markerLen = 6
       checked = true
     } else if (numericMatch) {
@@ -1651,7 +1672,9 @@ export class BlockParser {
 
     const joined = transformed.join('\n')
 
-    const { nodes, trailingAttrGroups, diagnostics, comments } = parseInlineText(joined)
+    const { nodes, trailingAttrGroups, diagnostics, comments } = parseInlineText(joined, {
+      blockLines: true,
+    })
     this.diagnostics.push(...diagnostics)
 
     let groups = trailingAttrGroups
