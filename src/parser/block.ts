@@ -4,6 +4,7 @@ import type {
   CodeBlock,
   CommentBlock,
   Column,
+  ColumnAlign,
   Diagnostic,
   Document,
   FileGroup,
@@ -50,10 +51,13 @@ import {
  * slots[0] is Slot 1 (last {}), slots[1] is Slot 2, etc.
  * If a slot is an array (Inline[]), find the last non-Text node.
  */
-const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnostics: Diagnostic[]): void => {
+const distributeScopeChain = (groups: Attribute[][], slots: unknown[], diagnostics: Diagnostic[]): void => {
   let slotIdx = 0
+  let orphaned = false
+
   for (let groupIdx = groups.length - 1; groupIdx >= 0; groupIdx--) {
     const group = groups[groupIdx] || []
+    let claimed = false
 
     while (slotIdx < slots.length) {
       const slot = slots[slotIdx++]
@@ -69,16 +73,27 @@ const distributeScopeChain = (groups: Attribute[][], slots: unknown[], _diagnost
             break
           }
         }
-        if (found) break
+        if (found) {
+          claimed = true
+          break
+        }
         // Array slot had no eligible node — fall through to next slot for this group
       } else if (typeof slot === 'object') {
         if (group.length > 0) (slot as Record<string, unknown>)['attributes'] = group
+        claimed = true
         break
       }
     }
 
-    // Spec §5.2: excess front attrs with no slot are silently dropped (no diagnostic)
+    // §6.1.3 / CDN-0011: a `{}` at the front of the chain with no slot left to
+    // claim is an orphan. It is dropped — an empty `{}` still claims its slot,
+    // so reaching here means the chain was genuinely longer than the context.
+    if (!claimed) orphaned = true
   }
+
+  // One diagnostic per chain, not per orphaned group: the registry's trigger is
+  // "one or more {...} blocks ... have no slot to claim".
+  if (orphaned) diagnostics.push({ code: 'CDN-0011', level: 'warning' })
 }
 
 // ─── Post-processing ──────────────────────────────────────────────────────────
@@ -153,7 +168,7 @@ const blockFileGroup = (block: Block): FileGroup | undefined => {
   return undefined
 }
 
-const groupFileRefs = (blocks: Block[]) => {
+const groupFileRefs = (blocks: Block[], diags: Diagnostic[]) => {
   const result: Block[] = []
   let i = 0
   while (i < blocks.length) {
@@ -192,7 +207,7 @@ const groupFileRefs = (blocks: Block[]) => {
           if (attrGroups && attrGroups.length > 0) {
             const slots: unknown[] = [groupNode, lastItem]
             if (lastItem.type === 'ImageBlock') slots.push(lastItem.alt)
-            distributeScopeChain(attrGroups, slots, [])
+            distributeScopeChain(attrGroups, slots, diags)
           }
         }
         result.push(groupNode)
@@ -207,14 +222,14 @@ const groupFileRefs = (blocks: Block[]) => {
   return result
 }
 
-const processListItemChildren = (children: (Block | Inline)[]): (Block | Inline)[] => {
+const processListItemChildren = (children: (Block | Inline)[], diags: Diagnostic[]): (Block | Inline)[] => {
   const blocks = children.filter(
     (c) => typeof c === 'object' && 'type' in c && isBlockType((c as Block).type)
   ) as Block[]
 
   if (blocks.length === 0) return children
 
-  const processedBlocks = processBlocks(blocks)
+  const processedBlocks = processBlocks(blocks, diags)
 
   // Pure block list (no inline siblings) — just return processed blocks
   if (blocks.length === children.length) return processedBlocks
@@ -234,10 +249,10 @@ const processListItemChildren = (children: (Block | Inline)[]): (Block | Inline)
   return [...inlines, ...processedBlocks]
 }
 
-const processBlocks = (blocks: Block[]): Block[] => {
+const processBlocks = (blocks: Block[], diags: Diagnostic[]): Block[] => {
   let result = nestSections(blocks)
   result = deduplicateRefDefs(result)
-  result = groupFileRefs(result)
+  result = groupFileRefs(result, diags)
   result = result.filter((b) => (b as unknown as Record<string, unknown>)['type'] !== 'Spacer')
 
   for (const block of result) {
@@ -248,11 +263,12 @@ const processBlocks = (blocks: Block[]): Block[] => {
       block.type === 'SpoilerBlock'
     ) {
       ;(block as unknown as Record<string, unknown>)['children'] = processBlocks(
-        (block as unknown as Record<string, Block[]>)['children'] as Block[]
+        (block as unknown as Record<string, Block[]>)['children'] as Block[],
+        diags
       )
     } else if (block.type === 'List') {
       for (const item of (block as List).children) {
-        item.children = processListItemChildren(item.children)
+        item.children = processListItemChildren(item.children, diags)
       }
     }
   }
@@ -264,7 +280,13 @@ const processBlocks = (blocks: Block[]): Block[] => {
 
 const parseTableRowLine = (
   line: string
-): { cells: string[]; cellsText: string; attrGroups: Attribute[][]; comment?: { text: string } } => {
+): {
+  cells: string[]
+  cellsText: string
+  attrGroups: Attribute[][]
+  sealed: boolean
+  comment?: { text: string }
+} => {
   const trimmed = line.trim()
   let comment: { text: string } | undefined
   let work = trimmed
@@ -277,7 +299,12 @@ const parseTableRowLine = (
   const { text: cellsPart, groups } = extractTrailingAttrGroups(work)
   const cellsText = cellsPart.trimEnd()
   const cells = splitCells(cellsText)
-  return { cells, cellsText, attrGroups: groups, ...(comment ? { comment } : {}) }
+  // §4.8 Table shape: the last `|` on a line is the closer, never a separator.
+  // A row that writes it has *sealed* its final cell — the cell's inline context
+  // is closed before the trailing attr chain begins, so the chain gets no inline
+  // slot (§6, Scope slots by context). A row that omits it leaves the cell open.
+  const sealed = cellsText.length > 1 && cellsText.endsWith('|')
+  return { cells, cellsText, attrGroups: groups, sealed, ...(comment ? { comment } : {}) }
 }
 
 /**
@@ -387,7 +414,7 @@ export class BlockParser {
     const pages = this.buildPages(rawBlocks)
     const processed = pages.map((p) => ({
       ...p,
-      children: processBlocks(p.children),
+      children: processBlocks(p.children, this.diagnostics),
     }))
     return { type: 'Document', children: processed }
   }
@@ -865,28 +892,29 @@ export class BlockParser {
     const rows: Row[] = []
     const columns: Column[] = []
     let alignmentSet = false
+    let alignSegments: ColumnAlign[] = []
     let tableAttrsFromSeparator: Attribute[] | null = null
 
     // Track row builders to apply scope chain to last content row
-    const rowBuilders: { attrGroups: Attribute[][]; row: Row }[] = []
+    const rowBuilders: { attrGroups: Attribute[][]; row: Row; sealed: boolean }[] = []
     let rowIndex = 0
 
     for (let i = 0; i < tableLines.length; i++) {
       const raw = tableLines[i] || ''
       const docLine = tableDocLines[i] ?? 0
-      const { cells, cellsText, attrGroups, comment } = parseTableRowLine(raw)
+      const { cells, cellsText, attrGroups, sealed, comment } = parseTableRowLine(raw)
       if (comment) tableReflection.push(this.makeReflection(docLine, comment.text))
 
       if (isHeaderSeparatorRow(cellsText)) {
         // §4.8: header separator row — marks preceding rows as Header; the first
         // one sets column alignment; its {attrs} claim the Table slot directly.
+        // A separator is never a content row, so it never defines the column
+        // count — alignment is resolved against colCount after the scan.
         for (const rb of rowBuilders) {
           if (rb.row.type === 'Row') rb.row.type = 'Header'
         }
         if (!alignmentSet) {
-          for (const seg of cells) {
-            columns.push({ type: 'Column', align: parseColumnAlign(seg.trim()) })
-          }
+          alignSegments = cells.map((seg) => parseColumnAlign(seg.trim()))
           alignmentSet = true
         }
         if (attrGroups.length > 0) {
@@ -899,33 +927,81 @@ export class BlockParser {
       const row: Row = {
         type: 'Row',
         children: cells.map((cellText, colIdx) => {
-          const { nodes } = parseInlineText(cellText.trim())
+          const { nodes, trailingAttrGroups: cellGroups, diagnostics: cellDiags } = parseInlineText(cellText.trim())
+          this.diagnostics.push(...cellDiags)
+          // §6 Rule B: a cell is an inline context, so a chain at the end of one
+          // distributes through *that* context's slots. `Cell` bears no
+          // attributes, so the only slot is the cell's last attr-bearing inline.
+          //
+          // This is reachable only for attrs written *inside* the cell — before
+          // the closing `|`, or in a non-final cell. A chain after the closer was
+          // already stripped at line level by parseTableRowLine() and belongs to
+          // the row/table chain instead.
+          if (cellGroups.length > 0) distributeScopeChain(cellGroups, [nodes], this.diagnostics)
           return { type: 'Cell' as const, children: nodes, row: rowIndex, column: colIdx }
         }),
         attributes: [],
       }
-      rowBuilders.push({ attrGroups, row })
+      rowBuilders.push({ attrGroups, row, sealed })
       rows.push(row)
       rowIndex++
     }
 
-    if (!alignmentSet) {
-      const colCount = Math.max(...rows.map((r) => r.children.length), 0)
-      for (let i = 0; i < colCount; i++) columns.push({ type: 'Column', align: 'left' })
+    // §4.8 Table shape: the column count is fixed by the FIRST content row —
+    // not max() across rows. Later rows are normalised to it.
+    const colCount = rows[0]?.children.length ?? 0
+    for (const row of rows) {
+      if (row.children.length > colCount) {
+        // Surplus cells drop author content, which is diagnosable (CDN-0018),
+        // on the CDN-0016 precedent.
+        row.children.length = colCount
+        this.diagnostics.push({ code: 'CDN-0018', level: 'warning' })
+      } else {
+        // Short rows pad. Nothing is lost, so this is normalisation and emits
+        // nothing. Padded cells carry no `loc` (§14).
+        for (let c = row.children.length; c < colCount; c++) {
+          row.children.push({ type: 'Cell', children: [], row: row.children[0]?.row ?? 0, column: c })
+        }
+      }
+    }
+    // A separator wider than the count drops its surplus with the same
+    // diagnostic; narrower, the uncovered columns default to "left".
+    // With no content row there is no established count for the separator to
+    // exceed, so a separator-only table is `columns: []` and emits nothing.
+    if (alignmentSet && rows.length > 0 && alignSegments.length > colCount) {
+      alignSegments.length = colCount
+      this.diagnostics.push({ code: 'CDN-0018', level: 'warning' })
+    }
+    for (let i = 0; i < colCount; i++) {
+      columns.push({ type: 'Column', align: alignSegments[i] ?? 'left' })
     }
 
     const table: Table = { type: 'Table', kind: 'pipe', rows, columns, attributes: [] }
     if (tableReflection.length > 0) table.reflection = tableReflection
 
-    // Apply scope chain for non-last content rows (attrs → row only)
+    // §6 Scope slots by context — pipe table rows.
+    //
+    // `Cell` bears no attributes, so the chain walks *past* the cell to the last
+    // attr-bearing inline inside it. That slot exists only while the cell is
+    // open: writing the closing `|` seals the inline context before the chain
+    // begins. The slot searches the last cell only and never scans sideways.
+    const inlineSlot = (rb: { row: Row; sealed: boolean }): unknown[] => {
+      if (rb.sealed) return []
+      const lastCell = rb.row.children[rb.row.children.length - 1]
+      return lastCell ? [lastCell.children] : []
+    }
+    // Non-last content rows: Row → last attr-bearing inline. The Table slot is
+    // only available from the last row's chain.
     for (let i = 0; i < rowBuilders.length - 1; i++) {
       const rb = rowBuilders[i]!
-      if (rb.attrGroups.length > 0) distributeScopeChain(rb.attrGroups, [rb.row], this.diagnostics)
+      if (rb.attrGroups.length > 0) {
+        distributeScopeChain(rb.attrGroups, [rb.row, ...inlineSlot(rb)], this.diagnostics)
+      }
     }
-    // Apply scope chain for last content row (last attr → table, preceding → row)
+    // Last content row: Table → Row → last attr-bearing inline.
     const lastRb = rowBuilders[rowBuilders.length - 1]
     if (lastRb && lastRb.attrGroups.length > 0) {
-      distributeScopeChain(lastRb.attrGroups, [table, lastRb.row], this.diagnostics)
+      distributeScopeChain(lastRb.attrGroups, [table, lastRb.row, ...inlineSlot(lastRb)], this.diagnostics)
     }
     // Header-separator attrs claim the Table slot (last separator with attrs wins)
     if (tableAttrsFromSeparator !== null) table.attributes = tableAttrsFromSeparator
@@ -1495,7 +1571,11 @@ export class BlockParser {
     const node: FileRef = { type: 'FileRef', path, query, fragment, attributes: [] }
 
     ;(node as unknown as Record<string, unknown>)['attrGroups'] = finalGroups
-    distributeScopeChain(finalGroups, [node], this.diagnostics)
+    // Provisional: a FileRef that turns out to belong to a FileRefGroup has its
+    // chain redistributed in groupFileRefs() against the full slot list. Emitting
+    // here would report an orphan against a slot list that is not yet complete.
+    const grouped = detectFileGroup(node.path) !== undefined
+    distributeScopeChain(finalGroups, [node], grouped ? [] : this.diagnostics)
 
     return node
   }

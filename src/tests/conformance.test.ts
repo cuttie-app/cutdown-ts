@@ -24,14 +24,26 @@ const SPEC_TESTS_DIR = resolve('./src/spec/tests')
 
 // ─── Test fixture type ────────────────────────────────────────────────────────
 
-interface Fixture {
+interface Snapshot {
+  ast?: unknown[]
+  pages?: unknown[]
+  diagnostics?: Array<{ code: string; level: string }>
+}
+
+interface Fixture extends Snapshot {
   id: string
   section: string
   description: string
   input: string
-  ast?: unknown[]
-  pages?: unknown[]
-  diagnostics?: Array<{ code: string; level: string }>
+  streaming?: {
+    /**
+     * Offset unit for `at`. §16 fixtures are authored in unicode scalars
+     * (code points), which is not the same as the UTF-16 code units `loc`
+     * uses (§14) — an astral character advances `at` by 1 and `loc` by 2.
+     */
+    unit?: 'unicode-scalar'
+    checkpoints: Array<Snapshot & { at: number }>
+  }
 }
 
 // ─── Deep subset match ────────────────────────────────────────────────────────
@@ -128,36 +140,76 @@ function clean(val: unknown): unknown {
 
 const fixtures = loadFixtures()
 
+/**
+ * Parse one input and assert it against a snapshot's `ast`/`pages`/`diagnostics`.
+ *
+ * §16.1 snapshot equivalence: a streaming checkpoint is not a special parse
+ * mode. The prefix is an ordinary, complete document and must produce exactly
+ * what parsing that text standalone produces — so checkpoints run through this
+ * same function as the whole-input case.
+ */
+function checkSnapshot(input: string, expected: Snapshot, label: string): void {
+  const { ast, diagnostics } = parse(input)
+  const cleanAst = clean(ast) as { type: string; children: unknown[] }
+
+  if (expected.pages !== undefined) {
+    // Full pages comparison
+    subsetMatch(cleanAst.children, expected.pages, `${label}pages`)
+  } else if (expected.ast !== undefined) {
+    // First page children comparison
+    const pages = cleanAst.children as Array<{ meta: unknown; children: unknown[] }>
+    const firstPageChildren = pages[0]?.children ?? []
+    subsetMatch(firstPageChildren, expected.ast, `${label}ast`)
+  }
+
+  if (expected.diagnostics !== undefined) {
+    const cleanDiags = clean(diagnostics) as unknown[]
+    // Each expected diagnostic must appear in actual (order-independent)
+    for (const expDiag of expected.diagnostics) {
+      const found = (cleanDiags as Array<{ code: string; level: string }>).some(
+        (d) => d.code === expDiag.code && d.level === expDiag.level
+      )
+      expect(found, `${label}diagnostic ${expDiag.code} (${expDiag.level}) not found`).toBe(true)
+    }
+    // No unexpected diagnostics
+    expect(cleanDiags.length, `${label}unexpected extra diagnostics`).toBe(expected.diagnostics.length)
+  } else {
+    // No diagnostics expected
+    expect(diagnostics.length, `${label}unexpected diagnostics: ` + diagnostics.map((d) => d.code).join(', ')).toBe(0)
+  }
+}
+
+/**
+ * Cut a prefix at `at` unicode scalars. Spreading the string iterates by code
+ * point, so a surrogate pair counts once — `String.prototype.slice` would cut
+ * by UTF-16 code unit and could split one in half.
+ */
+function prefixByScalar(input: string, at: number): string {
+  return [...input].slice(0, at).join('')
+}
+
 describe('Cutdown conformance', () => {
   for (const fixture of fixtures) {
     it(`[${fixture.section}] ${fixture.id} — ${fixture.description}`, () => {
-      const { ast, diagnostics } = parse(fixture.input ?? '')
-      const cleanAst = clean(ast) as { type: string; children: unknown[] }
+      const input = fixture.input ?? ''
+      checkSnapshot(input, fixture, '')
 
-      if (fixture.pages !== undefined) {
-        // Full pages comparison
-        subsetMatch(cleanAst.children, fixture.pages, 'pages')
-      } else if (fixture.ast !== undefined) {
-        // First page children comparison
-        const pages = cleanAst.children as Array<{ meta: unknown; children: unknown[] }>
-        const firstPageChildren = pages[0]?.children ?? []
-        subsetMatch(firstPageChildren, fixture.ast, 'ast')
-      }
+      // §16 Streaming Conformance Profile — each checkpoint is a prefix of the
+      // input, parsed as a document in its own right.
+      const streaming = fixture.streaming
+      if (!streaming) return
 
-      if (fixture.diagnostics !== undefined) {
-        const cleanDiags = clean(diagnostics) as unknown[]
-        // Each expected diagnostic must appear in actual (order-independent)
-        for (const expDiag of fixture.diagnostics) {
-          const found = (cleanDiags as Array<{ code: string; level: string }>).some(
-            (d) => d.code === expDiag.code && d.level === expDiag.level
-          )
-          expect(found, `diagnostic ${expDiag.code} (${expDiag.level}) not found`).toBe(true)
-        }
-        // No unexpected diagnostics
-        expect(cleanDiags.length, 'unexpected extra diagnostics').toBe(fixture.diagnostics.length)
-      } else {
-        // No diagnostics expected
-        expect(diagnostics.length, 'unexpected diagnostics: ' + diagnostics.map((d) => d.code).join(', ')).toBe(0)
+      const unit = streaming.unit ?? 'unicode-scalar'
+      expect(unit, 'unsupported streaming unit').toBe('unicode-scalar')
+      const total = [...input].length
+
+      for (const checkpoint of streaming.checkpoints) {
+        const { at } = checkpoint
+        expect(
+          Number.isInteger(at) && at >= 0 && at <= total,
+          `checkpoint at ${at}: out of range (input is ${total} scalars)`
+        ).toBe(true)
+        checkSnapshot(prefixByScalar(input, at), checkpoint, `checkpoint@${at} `)
       }
     })
   }
