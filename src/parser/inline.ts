@@ -10,7 +10,7 @@ import type {
   CodeInline,
   Link,
   ImageInline,
-  Span,
+  Mark,
   MathInline,
   Variable,
   QuoteInline,
@@ -21,6 +21,9 @@ import { parseAttrBlock } from './attrs.ts'
 import { isIdChar } from './utils.ts'
 
 // ─── Special characters per spec §4 ──────────────────────────────────────────
+
+/** §5.10: maximum `Mark` nesting depth; deeper openers emit CDN-0031. */
+export const MAX_MARK_DEPTH = 8
 
 export const SPECIAL_CHARS = new Set([
   '=',
@@ -57,6 +60,11 @@ export interface InlineParseOptions {
    * Only paragraph-like content is scanned as block lines.
    */
   blockLines?: boolean
+  /**
+   * §5.10: current `Mark` nesting depth. Threaded through the recursive parse of
+   * `Mark` content so the depth cap can be enforced across nesting levels.
+   */
+  markDepth?: number
 }
 
 /** Parse inline content from a (possibly multi-line) string. */
@@ -117,10 +125,12 @@ class InlineScanner {
   private diagnostics: Diagnostic[] = []
 
   private readonly blockLines: boolean
+  private readonly markDepth: number
 
   constructor(text: string, options?: InlineParseOptions) {
     this.chars = [...text]
     this.blockLines = options?.blockLines ?? false
+    this.markDepth = options?.markDepth ?? 0
   }
 
   scan(): InlineParseResult {
@@ -284,7 +294,7 @@ class InlineScanner {
     }
 
     if (c === ':' && this.ch(1) === ':') {
-      if (this.trySpan()) return
+      if (this.tryMark()) return
     }
 
     if (c === '{') {
@@ -646,20 +656,117 @@ class InlineScanner {
     return true
   }
 
-  private trySpan(): boolean {
+  /**
+   * §5.10 `Mark`: `::name <content>::` or `::name::`.
+   *
+   * Unlike every other inline construct, the opener (`::name` + space) is
+   * textually distinct from the closer (bare `::`), so content is matched by
+   * COUNTING nested openers rather than by taking the first closer (§9.4.1,
+   * Class 3). That is what makes same-type — even same-name — nesting legal.
+   */
+  private tryMark(): boolean {
     const start = this.pos
     this.pos += 2
     const nameStart = this.pos
     while (this.pos < this.chars.length && isIdChar(this.chars[this.pos] || '')) this.pos++
+    // The name is a maximal ID_LITERAL run, lexed before any delimiter matching.
+    // `_` is an ID_LITERAL char, so `::a__b__::` is a Mark named `a__b__` and no
+    // Emphasis forms; `*` is not, so `::a**b**::` fails the opener test below.
     const name = this.chars.slice(nameStart, this.pos).join('')
     if (name === '') {
+      // `::` with no valid name is literal. Emit one colon and rescan.
       this.pos = start + 1
       this.pushText(':')
       return true
     }
-    const node: Span = { type: 'Span', name, children: [], attributes: [] }
+
+    const afterName = this.pos
+    const isEmptyForm = this.ch() === ':' && this.ch(1) === ':'
+    const isContainer = this.ch() === ' '
+
+    // Name followed by neither a space nor `::` is not a Mark at all.
+    if (!isEmptyForm && !isContainer) return this.degradeMarkOpener(afterName, name)
+
+    if (this.markDepth + 1 > MAX_MARK_DEPTH) {
+      this.diagnostics.push({
+        code: 'CDN-0031',
+        level: 'warning',
+        message: `Mark nesting depth ${this.markDepth + 1} exceeds the maximum of ${MAX_MARK_DEPTH}`,
+      })
+      return this.degradeMarkOpener(afterName, name)
+    }
+
+    let children: Inline[] = []
+    if (isEmptyForm) {
+      this.pos += 2
+    } else {
+      // The single space after the name is the delimiter, not content.
+      const contentStart = afterName + 1
+      const closedAt = this.findMarkCloser(contentStart)
+      // Unclosed opener degrades per Class 1: the opener alone becomes Text.
+      if (closedAt === -1) return this.degradeMarkOpener(afterName, name)
+      const rawInner = this.chars.slice(contentStart, closedAt).join('')
+      const innerResult = parseInlineText(rawInner.trim(), { markDepth: this.markDepth + 1 })
+      this.diagnostics.push(...innerResult.diagnostics)
+      children = innerResult.nodes
+      this.pos = closedAt + 2
+    }
+
+    let attrs: Attribute[] | undefined
+    if (this.ch() === '{' && this.ch(1) !== '{') {
+      const r = this.readAttrBlock()
+      if (r && r.attrs.length > 0) attrs = r.attrs
+    }
+
+    const node: Mark = { type: 'Mark', name, children, attributes: attrs ?? [] }
     this.pushNode(node)
     return true
+  }
+
+  /** §9.4.1 Class 1: emit `::name` as literal Text and resume after it. */
+  private degradeMarkOpener(afterName: number, name: string): boolean {
+    this.pos = afterName
+    this.pushText(`::${name}`)
+    return true
+  }
+
+  /**
+   * Scan from `from` for the `::` that closes the currently-open Mark, counting
+   * nested openers. Returns the index of the closing `::`, or -1 if unclosed.
+   *
+   * A `::` is a nested OPENER when followed by `ID_LITERAL+` and then a space or
+   * `::`; otherwise it is a CLOSER. Escaped characters are skipped so `\::`
+   * cannot close a Mark.
+   */
+  private findMarkCloser(from: number): number {
+    let depth = 1
+    let i = from
+    while (i < this.chars.length) {
+      if (this.chars[i] === '\\') {
+        i += 2
+        continue
+      }
+      if (this.chars[i] !== ':' || this.chars[i + 1] !== ':') {
+        i++
+        continue
+      }
+      let j = i + 2
+      while (j < this.chars.length && isIdChar(this.chars[j] || '')) j++
+      const nestedName = j - (i + 2)
+      const follows = this.chars[j]
+      const opensNested = nestedName > 0 && (follows === ' ' || (follows === ':' && this.chars[j + 1] === ':'))
+      if (opensNested) {
+        depth++
+        // Resume at the character after the name: for the `::name::` form that is
+        // the inner closer, which the next iteration counts back down.
+        i = j
+        continue
+      }
+      depth--
+      if (depth === 0) return i
+      i += 2
+    }
+    return -1
   }
 
   private tryInlineAttrs(): boolean {

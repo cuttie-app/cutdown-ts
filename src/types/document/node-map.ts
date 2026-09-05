@@ -29,7 +29,7 @@ import type {
   TextBreak,
   Link,
   ImageInline,
-  Span,
+  Mark,
   MathInline,
   Variable,
   QuoteInline,
@@ -77,7 +77,7 @@ export type NodeMap = {
   TextBreak: TextBreak
   Link: Link
   ImageInline: ImageInline
-  Span: Span
+  Mark: Mark
   MathInline: MathInline
   Variable: Variable
   QuoteInline: QuoteInline

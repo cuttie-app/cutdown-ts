@@ -22,7 +22,7 @@ export type Inline =
   | TextBreak
   | Link
   | ImageInline
-  | Span
+  | Mark
   | MathInline
   | Variable
   | QuoteInline
@@ -81,8 +81,8 @@ export interface ImageInline {
   attributes: Attribute[]
 }
 
-export interface Span {
-  type: 'Span'
+export interface Mark {
+  type: 'Mark'
   name: string
   children: Inline[]
   attributes: Attribute[]

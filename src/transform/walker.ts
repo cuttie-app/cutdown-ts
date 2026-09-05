@@ -23,7 +23,7 @@ import type {
   Highlight,
   Link,
   ImageInline,
-  Span,
+  Mark,
   QuoteInline,
 } from '../types/document/inline.ts'
 import type { Visitors } from './types.ts'
@@ -64,9 +64,9 @@ function visitInline(node: Inline, v: V): Inline | undefined {
       visitInlines((node as ImageInline).alt, v)
       return v.ImageInline?.(node as ImageInline) as Inline | undefined
     }
-    case 'Span': {
-      visitInlines((node as Span).children, v)
-      return v.Span?.(node as Span) as Inline | undefined
+    case 'Mark': {
+      visitInlines((node as Mark).children, v)
+      return v.Mark?.(node as Mark) as Inline | undefined
     }
     case 'QuoteInline': {
       visitInlines((node as QuoteInline).children, v)

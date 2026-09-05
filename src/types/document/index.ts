@@ -11,7 +11,7 @@ export type {
   TextBreak,
   Link,
   ImageInline,
-  Span,
+  Mark,
   MathInline,
   Variable,
   QuoteInline,

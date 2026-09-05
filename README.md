@@ -105,7 +105,7 @@ import type {
   Link,
   LinkKind,
   ImageInline,
-  Span,
+  Mark,
   MathInline,
   QuoteInline,
   Spoiler,
@@ -233,7 +233,7 @@ result.walk({
 | `TextBreak`     | _(no fields)_                                                                                |
 | `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes`       |
 | `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                                 |
-| `Span`          | `name: string`, `children: Inline[]`, `attributes`                                           |
+| `Mark`          | `name: string`, `children: Inline[]`, `attributes`                                           |
 | `MathInline`    | `formula: string`, `attributes`                                                              |
 | `Variable`      | `key: string`, `attributes`                                                                  |
 | `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                             |
@@ -270,7 +270,7 @@ type Inline =
   | TextBreak
   | Link
   | ImageInline
-  | Span
+  | Mark
   | MathInline
   | Variable
   | QuoteInline
