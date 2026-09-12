@@ -32,15 +32,6 @@ export function isHeaderSeparatorRow(line: string): boolean {
   return cells.every((c) => /^ *:?-{3,}[:,.]? *$/.test(c))
 }
 
-/** Split a `+…+` separator row into column segments (between `+` delimiters) */
-export function splitGridSeparator(line: string): string[] {
-  const t = line.trimStart()
-  const inner = t.startsWith('+') ? t.slice(1) : t
-  const parts = inner.split('+')
-  if (parts[parts.length - 1]?.trim() === '') parts.pop()
-  return parts
-}
-
 export function splitCells(line: string): string[] {
   const trimmed = line.trim()
   const inner = trimmed.startsWith('|') ? trimmed.slice(1) : trimmed
@@ -55,7 +46,7 @@ export function parseColumnAlign(s: string): ColumnAlign {
   if (s.startsWith(':') && s.endsWith(':')) return 'center'
   if (s.startsWith(':')) return 'left'
   if (s.endsWith(':')) return 'right'
-  return 'left'
+  return 'start'
 }
 
 // ─── File group detection ─────────────────────────────────────────────────────

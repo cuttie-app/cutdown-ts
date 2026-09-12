@@ -1,4 +1,4 @@
-import type { Attribute, Diagnostic } from './common.ts'
+import type { Attribute } from './common.ts'
 import type { Inline } from './inline.ts'
 
 // ─── Reflection ───────────────────────────────────────────────────────────────
@@ -28,19 +28,12 @@ export interface Page {
 
 // ─── Parse result ─────────────────────────────────────────────────────────────
 
-export interface ParseResult {
-  ast: Document
-  diagnostics: Diagnostic[]
-}
-
 // ─── Block union ──────────────────────────────────────────────────────────────
 
 export type Block =
   | Section
   | Paragraph
-  | PageBreak
   | CodeBlock
-  | Meta
   | QuoteBlock
   | List
   | Table
@@ -52,6 +45,13 @@ export type Block =
   | MathBlock
   | SpoilerBlock
   | CommentBlock
+
+/**
+ * A block as it exists *during* parsing. `PageBreak` and `Meta` are consumed by
+ * the pagination fold (§9.5.2) — a `PageBreak` reaches no consumer at all, and a
+ * `Meta` reaches one only through `Page.meta` — so neither is a `Block`.
+ */
+export type ParseBlock = Block | PageBreak | Meta
 
 export interface CommentBlock {
   type: 'CommentBlock'
@@ -103,7 +103,7 @@ export interface QuoteBlock {
   type: 'QuoteBlock'
   children: Block[]
   attributes: Attribute[]
-  attribution?: Inline[]
+  caption?: Inline[]
   reflection?: Reflection[]
 }
 
@@ -131,8 +131,7 @@ export interface TaskItem {
   attributes: Attribute[]
 }
 
-export type TableKind = 'multiline' | 'pipe'
-export type ColumnAlign = 'left' | 'right' | 'center' | 'comma' | 'decimal'
+export type ColumnAlign = 'start' | 'left' | 'right' | 'center' | 'comma' | 'decimal'
 
 export interface Column {
   type: 'Column'
@@ -141,7 +140,7 @@ export interface Column {
 
 export interface Cell {
   type: 'Cell'
-  children: Inline[] | Block[]
+  children: Inline[]
   row: number
   column: number
 }
@@ -154,7 +153,6 @@ export interface Row {
 
 export interface Table {
   type: 'Table'
-  kind: TableKind
   rows: Row[]
   columns: Column[]
   attributes: Attribute[]

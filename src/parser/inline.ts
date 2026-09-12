@@ -221,7 +221,7 @@ class InlineScanner {
       if (next === '\n') {
         this.pos += 2
         if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
-        this.nodes.push({ type: 'TextBreak' })
+        this.nodes.push({ type: 'LineBreak' })
         return
       }
       if (next !== undefined) {
@@ -249,7 +249,7 @@ class InlineScanner {
     }
 
     if (c === '$' && this.ch(1) === '$') {
-      if (this.tryLiteral2('$$', 'MathInline')) return
+      if (this.tryLiteral2('$$')) return
     }
 
     if (c === '#' && this.ch(1) === '#') {
@@ -370,7 +370,7 @@ class InlineScanner {
     return true
   }
 
-  private tryLiteral2(delim: string, _kind: 'MathInline'): boolean {
+  private tryLiteral2(delim: string): boolean {
     const start = this.pos
     this.pos += 2
     let content = ''

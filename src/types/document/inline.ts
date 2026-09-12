@@ -19,7 +19,7 @@ export type Inline =
   | Strong
   | Highlight
   | CodeInline
-  | TextBreak
+  | LineBreak
   | Link
   | ImageInline
   | Mark
@@ -59,8 +59,8 @@ export interface CodeInline {
   attributes: Attribute[]
 }
 
-export interface TextBreak {
-  type: 'TextBreak'
+export interface LineBreak {
+  type: 'LineBreak'
 }
 
 export type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'

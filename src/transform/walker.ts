@@ -15,6 +15,7 @@ import type {
   ImageBlock,
   NamedBlock,
   RefDefinition,
+  SpoilerBlock,
 } from '../types/document/blocks.ts'
 import type {
   Inline,
@@ -25,6 +26,7 @@ import type {
   ImageInline,
   Mark,
   QuoteInline,
+  Spoiler,
 } from '../types/document/inline.ts'
 import type { Visitors } from './types.ts'
 import type { NodeMap } from '../types/document/node-map.ts'
@@ -72,12 +74,16 @@ function visitInline(node: Inline, v: V): Inline | undefined {
       visitInlines((node as QuoteInline).children, v)
       return v.QuoteInline?.(node as QuoteInline) as Inline | undefined
     }
+    case 'Spoiler': {
+      visitInlines((node as Spoiler).children, v)
+      return v.Spoiler?.(node as Spoiler) as Inline | undefined
+    }
     case 'Text':
       return v.Text?.(node) as Inline | undefined
     case 'CodeInline':
       return v.CodeInline?.(node) as Inline | undefined
-    case 'TextBreak':
-      return v.TextBreak?.(node) as Inline | undefined
+    case 'LineBreak':
+      return v.LineBreak?.(node) as Inline | undefined
     case 'MathInline':
       return v.MathInline?.(node) as Inline | undefined
     case 'Variable':
@@ -145,6 +151,10 @@ function visitBlock(node: Block, v: V): Block | undefined {
       visitBlocks((node as NamedBlock).children, v)
       return v.NamedBlock?.(node as NamedBlock) as Block | undefined
     }
+    case 'SpoilerBlock': {
+      visitBlocks((node as SpoilerBlock).children, v)
+      return v.SpoilerBlock?.(node as SpoilerBlock) as Block | undefined
+    }
     case 'RefDefinition': {
       visitInlines((node as RefDefinition).children, v)
       return v.RefDefinition?.(node as RefDefinition) as Block | undefined
@@ -155,12 +165,12 @@ function visitBlock(node: Block, v: V): Block | undefined {
     }
     case 'CodeBlock':
       return v.CodeBlock?.(node) as Block | undefined
-    case 'Meta':
-      return v.Meta?.(node) as Block | undefined
     case 'FileRef':
       return v.FileRef?.(node) as Block | undefined
     case 'MathBlock':
       return v.MathBlock?.(node) as Block | undefined
+    case 'CommentBlock':
+      return v.CommentBlock?.(node) as Block | undefined
   }
 }
 
@@ -186,11 +196,7 @@ function visitListItem(item: List['children'][number], v: V): void {
 function visitRows(rows: Row[], v: V): void {
   for (const row of rows) {
     for (const cell of row.children) {
-      if (cell.children.length > 0 && isBlock(cell.children[0] as Block | Inline)) {
-        visitBlocks(cell.children as Block[], v)
-      } else {
-        visitInlines(cell.children as Inline[], v)
-      }
+      visitInlines(cell.children, v)
       v.Cell?.(cell as Cell)
     }
     v.Row?.(row)
@@ -202,7 +208,6 @@ function isBlock(node: Block | Inline): boolean {
     'Section',
     'Paragraph',
     'CodeBlock',
-    'Meta',
     'QuoteBlock',
     'List',
     'Table',
@@ -212,6 +217,8 @@ function isBlock(node: Block | Inline): boolean {
     'NamedBlock',
     'RefDefinition',
     'MathBlock',
+    'SpoilerBlock',
+    'CommentBlock',
   ])
   return blockTypes.has((node as { type: string }).type)
 }

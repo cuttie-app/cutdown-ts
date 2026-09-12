@@ -8,7 +8,7 @@ export type {
   Strong,
   Highlight,
   CodeInline,
-  TextBreak,
+  LineBreak,
   Link,
   ImageInline,
   Mark,
@@ -19,11 +19,10 @@ export type {
 } from './inline.ts'
 export type {
   Block,
+  ParseBlock,
   Document,
   Page,
-  ParseResult,
   ListItemLike,
-  TableKind,
   ColumnAlign,
   FileGroup,
   Loc,

@@ -97,6 +97,45 @@ describe('ASTResult.walk()', () => {
     expect(languages).toEqual(['js'])
   })
 
+  it('visits SpoilerBlock and its children', () => {
+    const result = parse('^^^\nhidden\n^^^')
+    const seen: string[] = []
+    result.walk({
+      SpoilerBlock: () => {
+        seen.push('SpoilerBlock')
+      },
+      Text: (node) => {
+        seen.push(node.value)
+      },
+    })
+    expect(seen).toEqual(['hidden', 'SpoilerBlock'])
+  })
+
+  it('visits Spoiler inline and its children', () => {
+    const result = parse('a ^^secret^^ b')
+    const seen: string[] = []
+    result.walk({
+      Spoiler: () => {
+        seen.push('Spoiler')
+      },
+      Text: (node) => {
+        seen.push(node.value)
+      },
+    })
+    expect(seen).toEqual(['a ', 'secret', 'Spoiler', ' b'])
+  })
+
+  it('visits CommentBlock nodes', () => {
+    const result = parse('###\nnote\n###')
+    let count = 0
+    result.walk({
+      CommentBlock: () => {
+        count++
+      },
+    })
+    expect(count).toBe(1)
+  })
+
   it('visits nodes in a multi-page document', () => {
     const result = parse('Page one\n\n---\n\nPage two')
     const texts: string[] = []

@@ -1,6 +1,7 @@
 import type {
   Attribute,
   Block,
+  ParseBlock,
   CodeBlock,
   CommentBlock,
   Column,
@@ -41,7 +42,6 @@ import {
   isListMarkerLine,
   parseColumnAlign,
   splitCells,
-  splitGridSeparator,
 } from './utils.ts'
 
 // ─── Scope-chain distribution ─────────────────────────────────────────────────
@@ -308,27 +308,6 @@ const parseTableRowLine = (
 }
 
 /**
- * Parse a `+…+` separator line: extract comment, attrGroups, and column segments.
- * §4.8: `+` rows never mark headers — colons in them are inert.
- */
-const parseGridSeparatorLine = (
-  line: string
-): { segments: string[]; attrGroups: Attribute[][]; comment?: { text: string } } => {
-  const trimmed = line.trim()
-  let work = trimmed
-  let comment: { text: string } | undefined
-  const hashIdx = findRowCommentSplit(work)
-  if (hashIdx >= 0) {
-    const text = work.slice(hashIdx + 2).trimStart()
-    comment = { text }
-    work = work.slice(0, hashIdx).trimEnd()
-  }
-  const { text: withoutAttrs, groups: attrGroups } = extractTrailingAttrGroups(work)
-  const segments = splitGridSeparator(withoutAttrs)
-  return { segments, attrGroups, ...(comment ? { comment } : {}) }
-}
-
-/**
  * Locate `##` outside of code/math/quoted inline contexts in a table row line.
  * Returns -1 if no comment split is found. A naive scan is enough — table cells
  * cannot contain block-level structures, and §2.2 says `##` is opaque to other
@@ -420,33 +399,23 @@ export class BlockParser {
   }
 
   /**
-   * §9.6 pagination fold. A PageBreak always closes the current Page (Ghost if
-   * empty) and produces no node. A Meta block always closes the current Page and
-   * opens a new one, except when the current Page is the untouched initial
-   * Page[0] (no meta, no content, no PageBreak consumed) — then it fills that
-   * Page's meta slot. CommentBlock and blank lines are pass-through.
+   * §9.5.2 pagination fold. A PageBreak always closes the current Page (Ghost if
+   * empty) and produces no node. A Meta block is handled by the current Page's
+   * `meta` slot, not by its position: an empty slot takes it, whatever content
+   * the Page already holds; a filled one closes the Page and opens a new one
+   * carrying the Meta. CommentBlock and blank lines are pass-through.
    */
-  private buildPages(blocks: Block[]): Page[] {
+  private buildPages(blocks: ParseBlock[]): Page[] {
     const pages: Page[] = [{ meta: null, children: [] }]
-    let untouchedInitial = true
     for (const block of blocks) {
-      const t = (block as unknown as Record<string, unknown>)['type']
-      if (t === 'Spacer' || t === 'CommentBlock') {
-        pages[pages.length - 1]?.children.push(block)
-      } else if (t === 'PageBreak') {
+      if (block.type === 'PageBreak') {
         pages.push({ meta: null, children: [] })
-        untouchedInitial = false
       } else if (block.type === 'Meta') {
-        if (untouchedInitial) {
-          const cur = pages[pages.length - 1]
-          if (cur) cur.meta = block as Meta
-          untouchedInitial = false
-        } else {
-          pages.push({ meta: block as Meta, children: [] })
-        }
+        const cur = pages[pages.length - 1]
+        if (cur && cur.meta === null) cur.meta = block
+        else pages.push({ meta: block, children: [] })
       } else {
         pages[pages.length - 1]?.children.push(block)
-        untouchedInitial = false
       }
     }
     return pages
@@ -455,7 +424,7 @@ export class BlockParser {
   // ── Block collection ──────────────────────────────────────────────────────
 
   parseBlocks() {
-    const blocks: (Block | RefDefinition)[] = []
+    const blocks: ParseBlock[] = []
 
     const CAPTIONABLE = new Set([
       'Table',
@@ -565,11 +534,7 @@ export class BlockParser {
             addReflection(block as Block, this.makeReflection(this.pos - 1, c.text))
           }
 
-          if (block.type === 'QuoteBlock') {
-            ;(block as unknown as Record<string, unknown>)['attribution'] = captionNodes
-          } else {
-            ;(block as unknown as Record<string, unknown>)['caption'] = captionNodes
-          }
+          ;(block as unknown as Record<string, unknown>)['caption'] = captionNodes
         }
       }
 
@@ -589,6 +554,16 @@ export class BlockParser {
 
   private advance(): string {
     return this.lines[this.pos++] ?? ''
+  }
+
+  /**
+   * A container's children. Inside a block container a `~~~` span degrades to a
+   * Paragraph with CDN-0030 (§4.3) and a `---` line to a Paragraph with CDN-0017
+   * (§4.10), so neither `Meta` nor `PageBreak` can reach a container — the filter
+   * states that invariant rather than relying on it silently.
+   */
+  parseContainerBlocks(): Block[] {
+    return this.parseBlocks().filter((b): b is Block => b.type !== 'Meta' && b.type !== 'PageBreak')
   }
 
   // ── Block dispatch ────────────────────────────────────────────────────────
@@ -611,11 +586,8 @@ export class BlockParser {
       // valid row (end with `|`); otherwise fall through to Paragraph.
       const hashIdx = findRowCommentSplit(line)
       if (hashIdx < 0 || line.slice(0, hashIdx).trimEnd().endsWith('|')) {
-        return this.parseTable()
+        return this.parsePipeTable()
       }
-    }
-    if (line.startsWith('+-')) {
-      return this.parseTable()
     }
     // §6.5: orphaned caption line → CDN-0008 + Paragraph
     if (line.startsWith('^ ') || line === '^') {
@@ -826,18 +798,36 @@ export class BlockParser {
   // ── Heading / Section ─────────────────────────────────────────────────────
 
   private parseHeading(eqCount: number) {
+    // CDN-0012: 10 or more `=` is not a heading at any level. The line is
+    // ordinary paragraph content, so the run it opens is parsed as one.
+    if (eqCount > 9) {
+      this.diagnostics.push({ code: 'CDN-0012', level: 'warning' })
+      return this.parseParagraph()
+    }
+
     const docLine = this.pos
     const rawLine = this.advance()
     const line = rawLine.trimStart()
     const lines: string[] = [line.slice(eqCount + 1)]
 
-    while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
-      lines.push(this.advance())
+    // §4.2: the heading's inline content continues over following lines under
+    // the paragraph continuation rules (§4.1) — the run ends at a blank line, an
+    // attr line, a standalone `##` (§2.2), or a `^ ` caption line (§6.5).
+    while (this.pos < this.lines.length) {
+      const peeked = this.peek().trimStart()
+      if (peeked === '') break
+      if (peeked.startsWith('{')) break
+      if (peeked.startsWith('##') && !peeked.startsWith('###')) break
+      if (peeked.startsWith('^ ') || peeked === '^') break
+      lines.push(this.advance().trimStart())
     }
 
-    if (eqCount > 9) {
-      this.diagnostics.push({ code: 'CDN-0012', level: 'warning' })
-      return { type: 'Paragraph', children: [{ type: 'Text', value: line }] } as Paragraph
+    // §12.1: the end of the heading's inline context is a block boundary, so
+    // the trailing spaces of its last line are dropped rather than preserved.
+    lines[lines.length - 1] = (lines[lines.length - 1] ?? '').trimEnd()
+
+    while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
+      lines.push(this.advance())
     }
 
     const level = eqCount
@@ -856,14 +846,6 @@ export class BlockParser {
 
   // ── Table ─────────────────────────────────────────────────────────────────
 
-  private parseTable() {
-    const firstLine = this.peek().trimStart()
-    if (firstLine.startsWith('+-')) {
-      return this.parseMultilineTable()
-    }
-    return this.parsePipeTable()
-  }
-
   private parsePipeTable(): Table {
     const tableLines: string[] = []
     const tableDocLines: number[] = []
@@ -876,10 +858,6 @@ export class BlockParser {
         if (hashIdx >= 0 && !line.slice(0, hashIdx).trimEnd().endsWith('|')) break
         tableLines.push(raw)
         tableDocLines.push(this.pos++)
-      } else if (/^\+[-:]/.test(line)) {
-        // §4.8: `+` rows in a pipe table are ignored entirely (colons and {attrs}
-        // included, silent) — consumed so they do not interrupt the table.
-        this.pos++
       } else break
     }
 
@@ -920,6 +898,16 @@ export class BlockParser {
         if (attrGroups.length > 0) {
           const last = attrGroups[attrGroups.length - 1]
           if (last && last.length > 0) tableAttrsFromSeparator = last
+        }
+        continue
+      }
+
+      // §4.8 Empty tables: a lone `|` carries no cell at all. It opens a table
+      // with no rows; the line's attr groups still reach the Table slot below.
+      if (cells.length === 0) {
+        if (attrGroups.length > 0) {
+          const last = attrGroups[attrGroups.length - 1]
+          if (last && last.length > 0) tableAttrsFromSeparator ??= last
         }
         continue
       }
@@ -965,7 +953,7 @@ export class BlockParser {
       }
     }
     // A separator wider than the count drops its surplus with the same
-    // diagnostic; narrower, the uncovered columns default to "left".
+    // diagnostic; narrower, the uncovered columns take "start".
     // With no content row there is no established count for the separator to
     // exceed, so a separator-only table is `columns: []` and emits nothing.
     if (alignmentSet && rows.length > 0 && alignSegments.length > colCount) {
@@ -973,10 +961,10 @@ export class BlockParser {
       this.diagnostics.push({ code: 'CDN-0018', level: 'warning' })
     }
     for (let i = 0; i < colCount; i++) {
-      columns.push({ type: 'Column', align: alignSegments[i] ?? 'left' })
+      columns.push({ type: 'Column', align: alignSegments[i] ?? 'start' })
     }
 
-    const table: Table = { type: 'Table', kind: 'pipe', rows, columns, attributes: [] }
+    const table: Table = { type: 'Table', rows, columns, attributes: [] }
     if (tableReflection.length > 0) table.reflection = tableReflection
 
     // §6 Scope slots by context — pipe table rows.
@@ -1017,146 +1005,6 @@ export class BlockParser {
     return table
   }
 
-  private parseMultilineTable(): Table {
-    const tableLines: string[] = []
-    const tableDocLines: number[] = []
-
-    while (this.pos < this.lines.length) {
-      const raw = this.lines[this.pos] || ''
-      const line = raw.trimStart()
-      if (line.startsWith('|') || line.startsWith('+')) {
-        tableLines.push(raw)
-        tableDocLines.push(this.pos++)
-      } else break
-    }
-
-    const attrLines: string[] = []
-    while (this.pos < this.lines.length && this.peek().trim().startsWith('{')) {
-      attrLines.push(this.advance())
-    }
-
-    const tableReflection: Reflection[] = []
-    const rows: Row[] = []
-    const columns: Column[] = []
-    let alignmentSet = false
-    let tableAttrsFromPlus: Attribute[] | null = null
-
-    type PhaseEntry =
-      | { kind: 'rowGroup'; lines: { cells: string[]; attrGroups: Attribute[][] }[] }
-      | { kind: 'headerSep'; segments: string[] }
-      | { kind: 'bodySep' }
-    const phaseEntries: PhaseEntry[] = []
-    let pendingLines: { cells: string[]; attrGroups: Attribute[][] }[] = []
-    const flushPending = () => {
-      if (pendingLines.length > 0) {
-        phaseEntries.push({ kind: 'rowGroup', lines: pendingLines })
-        pendingLines = []
-      }
-    }
-
-    for (let i = 0; i < tableLines.length; i++) {
-      const raw = tableLines[i] || ''
-      const line = raw.trimStart()
-      const docLine = tableDocLines[i] ?? 0
-
-      if (line.startsWith('+')) {
-        // §4.8: a `+` row delimits logical rows; colons in it are inert (never
-        // marks Header, never sets alignment). Its {attrs} claim the Table slot
-        // (last separator row with attrs wins).
-        flushPending()
-        const { attrGroups, comment } = parseGridSeparatorLine(raw)
-        if (comment) tableReflection.push(this.makeReflection(docLine, comment.text))
-        if (attrGroups.length > 0) {
-          const last = attrGroups[attrGroups.length - 1]
-          if (last && last.length > 0) tableAttrsFromPlus = last
-        }
-        phaseEntries.push({ kind: 'bodySep' })
-      } else {
-        const { cells, cellsText, attrGroups, comment } = parseTableRowLine(raw)
-        if (comment) tableReflection.push(this.makeReflection(docLine, comment.text))
-        if (isHeaderSeparatorRow(cellsText)) {
-          // §4.8: in a multiline table the header separator is a FULL separator
-          // row — closes the logical row, marks the preceding section as Header;
-          // the first one sets alignment. Its {attrs} claim the Table slot.
-          flushPending()
-          if (attrGroups.length > 0) {
-            const last = attrGroups[attrGroups.length - 1]
-            if (last && last.length > 0) tableAttrsFromPlus = last
-          }
-          phaseEntries.push({ kind: 'headerSep', segments: cells })
-        } else {
-          pendingLines.push({ cells, attrGroups })
-        }
-      }
-    }
-    flushPending()
-
-    let rowIndex = 0
-    for (const entry of phaseEntries) {
-      if (entry.kind === 'headerSep') {
-        for (const r of rows) {
-          if (r.type === 'Row') r.type = 'Header'
-        }
-        if (!alignmentSet) {
-          for (const seg of entry.segments) {
-            columns.push({ type: 'Column', align: parseColumnAlign(seg.trim()) })
-          }
-          alignmentSet = true
-        }
-      } else if (entry.kind === 'rowGroup') {
-        const colCount = Math.max(...entry.lines.map((l) => l.cells.length), 0)
-        if (colCount === 0) continue
-
-        const colTexts: string[] = Array.from({ length: colCount }, () => '')
-        for (const line of entry.lines) {
-          for (let c = 0; c < colCount; c++) {
-            const cell = (line.cells[c] ?? '').trim()
-            if (cell) colTexts[c] = colTexts[c] ? colTexts[c] + ' ' + cell : cell
-          }
-        }
-
-        const row: Row = {
-          type: 'Row',
-          children: colTexts.map((text, colIdx) => {
-            const sub = new BlockParser([text], true)
-            const cellBlocks = sub.parseBlocks()
-            this.diagnostics.push(...sub.diagnostics)
-            return { type: 'Cell' as const, children: cellBlocks, row: rowIndex, column: colIdx }
-          }),
-          attributes: [],
-        }
-
-        // Row attrs come from the last | line's attrGroups
-        const lastLine = entry.lines[entry.lines.length - 1]
-        if (lastLine && lastLine.attrGroups.length > 0) {
-          distributeScopeChain(lastLine.attrGroups, [row], this.diagnostics)
-        }
-
-        rows.push(row)
-        rowIndex++
-      }
-    }
-
-    if (!alignmentSet) {
-      const colCount = Math.max(...rows.map((r) => r.children.length), 0)
-      for (let i = 0; i < colCount; i++) columns.push({ type: 'Column', align: 'left' })
-    }
-
-    const table: Table = { type: 'Table', kind: 'multiline', rows, columns, attributes: [] }
-    if (tableReflection.length > 0) table.reflection = tableReflection
-
-    if (tableAttrsFromPlus !== null) table.attributes = tableAttrsFromPlus
-
-    if (attrLines.length > 0) {
-      const { trailingAttrGroups, diagnostics } = parseInlineText(attrLines.join('\n'))
-      this.diagnostics.push(...diagnostics)
-      const last = trailingAttrGroups[trailingAttrGroups.length - 1]
-      if (last && last.length > 0) table.attributes = last
-    }
-
-    return table
-  }
-
   // ── QuoteBlock ────────────────────────────────────────────────────────────
 
   private parseQuoteBlock() {
@@ -1164,7 +1012,23 @@ export class BlockParser {
     let attrs: Attribute[] | undefined
     let firstLine = true
 
-    while (this.pos < this.lines.length && this.lines[this.pos]?.trimStart().startsWith('>')) {
+    while (this.pos < this.lines.length) {
+      const peeked = this.lines[this.pos]?.trimStart() ?? ''
+      const isPrefixed = peeked.startsWith('>')
+      if (!isPrefixed) {
+        // §4.6 Lazy continuation: an unprefixed line continues the quote and is
+        // handed to the quote's current child block, which applies its own
+        // continuation rules. The quote ends at a blank line; the lines that
+        // break a paragraph (§6.5 caption, §2.2 standalone `##`, an attr line)
+        // break the lazy run too, so they still bind to the quote itself.
+        if (firstLine) break
+        if (peeked === '') break
+        if (peeked.startsWith('^ ') || peeked === '^') break
+        if (peeked.startsWith('##') && !peeked.startsWith('###')) break
+        if (peeked.startsWith('{')) break
+        contentLines.push(this.lines[this.pos++] || '')
+        continue
+      }
       const raw = this.lines[this.pos++]
       const line = raw?.trimStart() || ''
       const rest = line.slice(1)
@@ -1203,7 +1067,7 @@ export class BlockParser {
     }
 
     const sub = new BlockParser(contentLines, true)
-    const children = sub.parseBlocks()
+    const children = sub.parseContainerBlocks()
     this.diagnostics.push(...sub.diagnostics)
     const node: QuoteBlock = { type: 'QuoteBlock', children, attributes: attrs || [] }
     return node
@@ -1309,10 +1173,7 @@ export class BlockParser {
     let start: number | undefined
 
     const numericMatch = firstStripped.match(/^(\d+)\. /)
-    if (firstStripped.startsWith('- [] ')) {
-      markerLen = 5
-      checked = false
-    } else if (firstStripped.startsWith('- [ ] ')) {
+    if (firstStripped.startsWith('- [ ] ')) {
       markerLen = 6
       checked = false
     } else if (
@@ -1356,7 +1217,20 @@ export class BlockParser {
         break
       }
 
-      if (lineCol <= col) break
+      if (lineCol <= col) {
+        // §10.5: a depth-0 item takes any non-blank, non-marker line whatever
+        // its column (threshold −∞). The lines that break a paragraph — a
+        // caption (§6.5), a standalone `##` (§2.2), an attr line — break the
+        // item too. A marker at this column is a sibling and ends the item.
+        if (col !== 0) break
+        if (isListMarkerLine(lineStripped)) break
+        if (lineStripped.startsWith('{')) break
+        if (lineStripped.startsWith('^ ') || lineStripped === '^') break
+        if (lineStripped.startsWith('##') && !lineStripped.startsWith('###')) break
+        contentLines.push(lineStripped)
+        this.pos++
+        continue
+      }
 
       const stripped_content = line.length >= contentIndent ? line.slice(contentIndent) : lineStripped
       contentLines.push(stripped_content)
@@ -1374,7 +1248,7 @@ export class BlockParser {
 
     if (hasBlank) {
       const sub = new BlockParser(contentLines, true)
-      children = sub.parseBlocks()
+      children = sub.parseContainerBlocks()
       this.diagnostics.push(...sub.diagnostics)
       if (attrLines.length > 0) {
         const { trailingAttrGroups, diagnostics } = parseInlineText(attrLines.join('\n'))
@@ -1462,7 +1336,7 @@ export class BlockParser {
         i = j - 1
 
         const subParser = new BlockParser(subLines)
-        const nestedBlocks = subParser.parseBlocks()
+        const nestedBlocks = subParser.parseContainerBlocks()
         this.diagnostics.push(...subParser.diagnostics)
         result.push(...nestedBlocks)
         trailingAttrGroups = []
@@ -1482,7 +1356,7 @@ export class BlockParser {
         i = j - 1
 
         const subParser = new BlockParser(subLines)
-        const nestedBlocks = subParser.parseBlocks()
+        const nestedBlocks = subParser.parseContainerBlocks()
         this.diagnostics.push(...subParser.diagnostics)
         result.push(...nestedBlocks)
         trailingAttrGroups = []
@@ -1664,7 +1538,7 @@ export class BlockParser {
     const stripped = contentLines.map((l) => (l.length >= baseIndent ? l.slice(baseIndent) : l.trimStart()))
 
     const sub = new BlockParser(stripped, true)
-    node.children = sub.parseBlocks()
+    node.children = sub.parseContainerBlocks()
     this.diagnostics.push(...sub.diagnostics)
 
     return node
@@ -1711,7 +1585,7 @@ export class BlockParser {
     const stripped = contentLines.map((l) => (l.length >= baseIndent ? l.slice(baseIndent) : l.trimStart()))
 
     const sub = new BlockParser(stripped, true)
-    node.children = sub.parseBlocks()
+    node.children = sub.parseContainerBlocks()
     this.diagnostics.push(...sub.diagnostics)
 
     return node

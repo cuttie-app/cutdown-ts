@@ -101,7 +101,7 @@ import type {
   Strong,
   Strikethrough,
   CodeInline,
-  TextBreak,
+  LineBreak,
   Link,
   LinkKind,
   ImageInline,
@@ -230,7 +230,7 @@ result.walk({
 | `Strong`        | `children: Inline[]`, `attributes`                                                           |
 | `Strikethrough` | `children: Inline[]`, `attributes`                                                           |
 | `CodeInline`    | `value: string`, `attributes`                                                                |
-| `TextBreak`     | _(no fields)_                                                                                |
+| `LineBreak`     | _(no fields)_                                                                                |
 | `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes`       |
 | `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                                 |
 | `Mark`          | `name: string`, `children: Inline[]`, `attributes`                                           |
@@ -267,7 +267,7 @@ type Inline =
   | Strong
   | Strikethrough
   | CodeInline
-  | TextBreak
+  | LineBreak
   | Link
   | ImageInline
   | Mark
