@@ -44,6 +44,8 @@ export type {
   MathInline,
   Variable,
   QuoteInline,
+  QuoteKind,
+  Spoiler,
 } from './types/document/inline.ts'
 
 export type {
@@ -52,6 +54,8 @@ export type {
   Page,
   ListItemLike,
   ColumnAlign,
+  SectionLevel,
+  MetaFormat,
   FileGroup,
   Loc,
   Reflection,
@@ -73,6 +77,9 @@ export type {
   NamedBlock,
   RefDefinition,
   MathBlock,
+  SpoilerBlock,
+  CommentBlock,
+  Fragment,
 } from './types/document/blocks.ts'
 
 export type { NodeMap } from './types/document/node-map.ts'

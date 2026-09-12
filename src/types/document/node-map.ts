@@ -26,7 +26,7 @@ import type {
   Strong,
   Highlight,
   CodeInline,
-  TextBreak,
+  LineBreak,
   Link,
   ImageInline,
   Mark,
@@ -74,7 +74,7 @@ export type NodeMap = {
   Strong: Strong
   Highlight: Highlight
   CodeInline: CodeInline
-  TextBreak: TextBreak
+  LineBreak: LineBreak
   Link: Link
   ImageInline: ImageInline
   Mark: Mark

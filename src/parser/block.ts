@@ -2,6 +2,7 @@ import type {
   Attribute,
   Block,
   ParseBlock,
+  SectionLevel,
   CodeBlock,
   CommentBlock,
   Column,
@@ -14,7 +15,6 @@ import type {
   ImageBlock,
   Inline,
   List,
-  ListItem,
   ListItemLike,
   Loc,
   MathBlock,
@@ -30,7 +30,6 @@ import type {
   Section,
   SpoilerBlock,
   Table,
-  TaskItem,
 } from '../types/document'
 import { extractTrailingAttrGroups, parseAttrBlock } from './attrs.ts'
 import { parseInlineLines, parseInlineText } from './inline.ts'
@@ -157,9 +156,9 @@ const nestSections = (blocks: Block[]): Block[] => {
 const deduplicateRefDefs = (blocks: Block[]) => {
   const last = new Map<string, number>()
   blocks.forEach((b, i) => {
-    if (isRefDefinition(b)) last.set(b.id, i)
+    if (isRefDefinition(b)) last.set(b.ref, i)
   })
-  return blocks.filter((b, i) => !isRefDefinition(b) || last.get(b.id) === i)
+  return blocks.filter((b, i) => !isRefDefinition(b) || last.get(b.ref) === i)
 }
 
 const blockFileGroup = (block: Block): FileGroup | undefined => {
@@ -830,7 +829,8 @@ export class BlockParser {
       lines.push(this.advance())
     }
 
-    const level = eqCount
+    // The CDN-0012 guard above bounds eqCount to 1..9.
+    const level = eqCount as SectionLevel
     const fullContent = lines.join('\n')
 
     const { nodes: heading, trailingAttrGroups, diagnostics, comments } = parseInlineText(fullContent)
@@ -1269,9 +1269,9 @@ export class BlockParser {
 
     let item: ListItemLike
     if (checked !== undefined) {
-      item = { type: 'TaskItem', checked, children } as TaskItem
+      item = { type: 'TaskItem', checked, children, attributes: [] }
     } else {
-      item = { type: 'ListItem', children } as ListItem
+      item = { type: 'ListItem', children, attributes: [] }
     }
 
     return { item, start, attrGroups: groups, absorbedBlank }
@@ -1463,10 +1463,10 @@ export class BlockParser {
       const { nodes } = parseInlineText(line)
       return { type: 'Paragraph', children: nodes } as Paragraph
     }
-    const id = m[1] || ''
+    const ref = m[1] || ''
     const content = m[2] || ''
     const { nodes: children } = parseInlineText(content)
-    return { type: 'RefDefinition', id, children } as RefDefinition
+    return { type: 'RefDefinition', ref, children } as RefDefinition
   }
 
   // ── NamedBlock ────────────────────────────────────────────────────────────

@@ -53,16 +53,29 @@ export type Block =
  */
 export type ParseBlock = Block | PageBreak | Meta
 
+/**
+ * §14.5: a synthetic segment. No parse produces a `Fragment` — a consumer that
+ * materializes a transclusion does — but a conforming consumer must accept one.
+ */
+export interface Fragment {
+  type: 'Fragment'
+  meta: Meta | null
+  children: Block[]
+}
+
 export interface CommentBlock {
   type: 'CommentBlock'
   text: string
+  reflection?: Reflection[]
 }
 
 // ─── Block nodes ──────────────────────────────────────────────────────────────
 
+export type SectionLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+
 export interface Section {
   type: 'Section'
-  level: number
+  level: SectionLevel
   heading: Inline[]
   attributes: Attribute[]
   children: Block[]
@@ -93,9 +106,11 @@ export interface CodeBlock {
   reflection?: Reflection[]
 }
 
+export type MetaFormat = 'yaml' | 'toml' | 'json'
+
 export interface Meta {
   type: 'Meta'
-  format: string
+  format: MetaFormat
   raw: string
 }
 
@@ -116,12 +131,13 @@ export interface List {
   loose: boolean
   children: ListItemLike[]
   attributes: Attribute[]
+  reflection?: Reflection[]
 }
 
 export interface ListItem {
   type: 'ListItem'
   children: (Block | Inline)[]
-  attributes?: Attribute[]
+  attributes: Attribute[]
 }
 
 export interface TaskItem {
@@ -201,9 +217,10 @@ export interface NamedBlock {
 
 export interface RefDefinition {
   type: 'RefDefinition'
-  id: string
+  ref: string
   children: Inline[]
   attributes: Attribute[]
+  reflection?: Reflection[]
 }
 
 export interface MathBlock {
