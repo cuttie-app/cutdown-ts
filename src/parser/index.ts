@@ -4,7 +4,7 @@ import type { NodeMap } from '../types/document'
 import type { ParseState } from './block.ts'
 
 /** The Cutdown language version this parser implements (§20.2 clause 6). */
-export const LANGUAGE_VERSION = '0.11.0'
+export const LANGUAGE_VERSION = '0.12.0'
 
 /**
  * Parse a Cutdown string into an AST.

@@ -263,44 +263,19 @@ class InlineParser {
   }
 
   /**
-   * The closer of a span opened before `from`, in source order; -1 if none.
-   *
-   * A complete link or image is its own inline context, so a closer after it
-   * is preferred to one inside it. Only when none follows does the first
-   * closer win, crossing the link (§14 row 9, CDN-0014).
+   * The closer of a span opened before `from`: the first one after it, in
+   * source order (§14 row 9). Link text, `alt`, and Mark content do not stop
+   * the search — a span kind never repeats inside itself.
    */
-  private findDelim(delim: string, from: number, to: number, ctx: Ctx): number {
-    const outside = this.scanDelim(delim, from, to, ctx)
-    return outside >= 0 ? outside : this.scanDelim(delim, from, to, null)
-  }
-
-  private scanDelim(delim: string, from: number, to: number, skipLinks: Ctx | null): number {
+  private findDelim(delim: string, from: number, to: number): number {
     const s = this.s
     let j = from
     while (j + 1 < to) {
       if (s[j] === delim[0] && s[j + 1] === delim[1]) return j
-      if (skipLinks) {
-        const end = this.completeLink(j, to, skipLinks)
-        if (end >= 0) {
-          j = end
-          continue
-        }
-      }
       const k = this.skipProtected(j, to)
       j = k >= 0 ? k : j + 1
     }
     return -1
-  }
-
-  /** Index after a complete `[…](…)` or `![…](…)` starting at `j`, or -1. */
-  private completeLink(j: number, to: number, ctx: Ctx): number {
-    const s = this.s
-    const image = s[j] === '!' && s[j + 1] === '['
-    if (image ? ctx.inAlt : s[j] !== '[' || ctx.inLink || ctx.inAlt) return -1
-    const close = this.findBracketClose(image ? j + 2 : j + 1, to)
-    if (close < 0 || s[close + 1] !== '(' || close + 1 >= to) return -1
-    const end = this.findParenClose(close + 2, to)
-    return end < 0 ? -1 : end + 1
   }
 
   /** The `]` matching the `[` before `from`: brackets counted, escapes not. */
@@ -393,7 +368,7 @@ class InlineParser {
       const pair = c + (n ?? '')
       const spanKind = SPAN_DELIMS[pair]
       if (spanKind) {
-        const close = this.findDelim(pair, i + 2, to, ctx)
+        const close = this.findDelim(pair, i + 2, to)
         if (close < 0) {
           text += pair
           degraded.push(pair)
@@ -490,11 +465,13 @@ class InlineParser {
         const close = this.findMarkClose(i, to)
         if (close < 0) {
           text += '::' + name
+          degraded.push('::')
           i = j
           continue
         }
         const [a, b] = this.trim(contentStart, close)
         const inner = this.parseRange(a, b, { ...ctx, markDepth: ctx.markDepth + 1 }, 'nested')
+        this.crossCheck(inner.degraded, '::', close + 2)
         push({ _type: 'Mark', name, children: inner.nodes, attributes: [] }, close + 2)
         i = close + 2
         continue
@@ -511,7 +488,7 @@ class InlineParser {
         const key = s.slice(i + 2, close)
         if (isIdName(key)) push({ _type: 'Variable', key, attributes: [] }, close + 2)
         else {
-          if (key !== '') this.diagnostics.push(diag('CDN-0015', undefined, key))
+          this.diagnostics.push(diag('CDN-0015', undefined, key))
           text += s.slice(i, close + 2)
         }
         i = close + 2
@@ -548,8 +525,9 @@ class InlineParser {
   }
 
   /**
-   * CDN-0014: a span or link closed while an opener of another kind inside it
-   * was left literal, and that opener's closer comes later in the context.
+   * CDN-0014: a span, link, or Mark closed while an opener of another kind
+   * inside it was left literal, and that opener's closer comes later in the
+   * context. A Mark opener's closer is a `::`.
    */
   private crossCheck(inner: string[], own: string, after: number): void {
     for (const d of inner) {
