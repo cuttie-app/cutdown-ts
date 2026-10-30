@@ -1,15 +1,4 @@
-import type { Attribute, Diagnostic } from './common.ts'
-
-// ─── Inline parse result ──────────────────────────────────────────────────────
-
-export interface InlineParseResult {
-  nodes: Inline[]
-  /** Trailing attribute groups for scope-chain distribution (left-to-right order) */
-  trailingAttrGroups: Attribute[][]
-  diagnostics: Diagnostic[]
-  /** `##` comments extracted from the inline text; block parser attaches them to reflection */
-  comments: { lineOffset: number; text: string }[]
-}
+import type { Attribute, PathResourceLocator } from './common.ts'
 
 // ─── Inline union ─────────────────────────────────────────────────────────────
 
@@ -18,99 +7,117 @@ export type Inline =
   | Emphasis
   | Strong
   | Highlight
-  | CodeInline
-  | LineBreak
-  | Link
-  | ImageInline
-  | Mark
-  | MathInline
-  | Variable
-  | QuoteInline
   | Spoiler
+  | Link
+  | CodeInline
+  | MathInline
+  | QuoteInline
+  | ImageInline
+  | EmbedImageInline
+  | Mark
+  | LineBreak
+  | Variable
 
 // ─── Inline nodes ─────────────────────────────────────────────────────────────
 
 export interface Text {
-  type: 'Text'
+  _type: 'Text'
   value: string
 }
 
 export interface Emphasis {
-  type: 'Emphasis'
+  _type: 'Emphasis'
   children: Inline[]
   attributes: Attribute[]
 }
 
 export interface Strong {
-  type: 'Strong'
+  _type: 'Strong'
   children: Inline[]
   attributes: Attribute[]
 }
 
 export interface Highlight {
-  type: 'Highlight'
+  _type: 'Highlight'
   children: Inline[]
+  attributes: Attribute[]
+}
+
+export interface Spoiler {
+  _type: 'Spoiler'
+  children: Inline[]
+  attributes: Attribute[]
+}
+
+export type LinkKind = 'external' | 'page' | 'id' | 'ref' | 'tag' | 'cite'
+
+/** §5.5: one link form, `[text](target)`; the target's first characters choose the kind. */
+export interface Link {
+  _type: 'Link'
+  kind: LinkKind
+  children: Inline[]
+  /** kind "external"; otherwise '' */
+  href: string
+  /** kind "page": the target as written; otherwise '' */
+  raw: string
+  /** kind "page" with a valid path; otherwise null */
+  path: PathResourceLocator | null
+  /** kind "id" | "ref" | "tag" | "cite", without the sigil; otherwise '' */
+  target: string
   attributes: Attribute[]
 }
 
 export interface CodeInline {
-  type: 'CodeInline'
+  _type: 'CodeInline'
   value: string
   attributes: Attribute[]
 }
 
-export interface LineBreak {
-  type: 'LineBreak'
-}
-
-export type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
-
-export interface Link {
-  type: 'Link'
-  kind: LinkKind
-  href: string
-  target: string
-  children: Inline[]
-  attributes: Attribute[]
-}
-
-export interface ImageInline {
-  type: 'ImageInline'
-  alt: Inline[]
-  src: string
-  attributes: Attribute[]
-}
-
-export interface Mark {
-  type: 'Mark'
-  name: string
-  children: Inline[]
-  attributes: Attribute[]
-}
-
 export interface MathInline {
-  type: 'MathInline'
+  _type: 'MathInline'
   formula: string
-  attributes: Attribute[]
-}
-
-export interface Variable {
-  type: 'Variable'
-  key: string
   attributes: Attribute[]
 }
 
 export type QuoteKind = 'double' | 'single'
 
 export interface QuoteInline {
-  type: 'QuoteInline'
+  _type: 'QuoteInline'
   kind: QuoteKind
   children: Inline[]
   attributes: Attribute[]
 }
 
-export interface Spoiler {
-  type: 'Spoiler'
+export interface ImageInline {
+  _type: 'ImageInline'
+  alt: Inline[]
+  raw: string
+  /** null when the path is invalid (§8.5, §5.9) */
+  src: PathResourceLocator | null
+  attributes: Attribute[]
+}
+
+/** §5.9.1: an image whose source begins with literal `https://`. */
+export interface EmbedImageInline {
+  _type: 'EmbedImageInline'
+  alt: Inline[]
+  url: string
+  attributes: Attribute[]
+}
+
+export interface Mark {
+  _type: 'Mark'
+  name: string
   children: Inline[]
+  attributes: Attribute[]
+}
+
+export interface LineBreak {
+  _type: 'LineBreak'
+}
+
+export interface Variable {
+  _type: 'Variable'
+  key: string
   attributes: Attribute[]
 }

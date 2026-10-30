@@ -125,15 +125,32 @@ describe('ASTResult.walk()', () => {
     expect(seen).toEqual(['a ', 'secret', 'Spoiler', ' b'])
   })
 
-  it('visits CommentBlock nodes', () => {
-    const result = parse('###\nnote\n###')
-    let count = 0
+  it('visits FileBlock nodes inside their FileGroup', () => {
+    const result = parse('/a.png\n/b.pdf')
+    const seen: string[] = []
     result.walk({
-      CommentBlock: () => {
-        count++
+      FileBlock: (node) => {
+        seen.push(node.raw)
+      },
+      FileGroup: () => {
+        seen.push('FileGroup')
       },
     })
-    expect(count).toBe(1)
+    expect(seen).toEqual(['/a.png', '/b.pdf', 'FileGroup'])
+  })
+
+  it('visits inline content held directly by a container', () => {
+    const result = parse('> quoted __text__')
+    const seen: string[] = []
+    result.walk({
+      Emphasis: () => {
+        seen.push('Emphasis')
+      },
+      QuoteBlock: () => {
+        seen.push('QuoteBlock')
+      },
+    })
+    expect(seen).toEqual(['Emphasis', 'QuoteBlock'])
   })
 
   it('visits nodes in a multi-page document', () => {
@@ -194,7 +211,7 @@ describe('pipeline()', () => {
   it('preserves ast and diagnostics on the result', () => {
     const enrichedParse = pipeline(parse, [])
     const result = enrichedParse('# Hello')
-    expect(result.ast.type).toBe('Document')
+    expect(result.ast._type).toBe('Document')
     expect(Array.isArray(result.diagnostics)).toBe(true)
   })
 

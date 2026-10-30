@@ -37,23 +37,26 @@ const ast = parse(input)
 `ast -> JSON -> YAML`:
 
 ```yaml
-ast:
-  type: Document
-  children:
-    - meta: null
-      children:
-        - type: Section
-          level: 2
-          heading:
-            - type: Text
-              value: Article Heading
-          attributes: []
-          children:
-            - type: Paragraph
-              children:
-                - type: Text
-                  value: That's how we start paragraph.
-                  attributes: []
+_type: Document
+children:
+  - _type: Page
+    meta: null
+    reflections: []
+    children:
+      - _type: Section
+        level: 2
+        heading:
+          - _type: Text
+            value: Article Heading
+        children:
+          - _type: Paragraph
+            children:
+              - _type: Text
+                value: That's how we start paragraph.
+            attributes: []
+            reflections: []
+        attributes: []
+        reflections: []
 ```
 
 ## Specification
@@ -67,11 +70,10 @@ Edge cases and acceptance criteria are defined in the spec's test suite: [Cutdow
 ## API Reference
 
 ```ts
-import { parse, pipeline, ASTResult } from 'cutdown-parser'
+import { parse, pipeline, ASTResult, LANGUAGE_VERSION } from 'cutdown-parser'
 
 import type {
-  // Parse output
-  ParseResult,
+  // Document structure
   Document,
   Page,
 
@@ -79,52 +81,54 @@ import type {
   Block,
   Section,
   Paragraph,
-  ThematicBreak,
   CodeBlock,
+  MathBlock,
   QuoteBlock,
   List,
   Table,
-  ColumnAlign,
-  FileRef,
-  FileRefGroup,
-  ImageBlock,
   FileGroup,
+  EmbedBlock,
+  InjectBlock,
   NamedBlock,
-  MathBlock,
   SpoilerBlock,
-  CommentBlock,
+  RefDefinition,
 
   // Inline segments
   Inline,
   Text,
   Emphasis,
   Strong,
-  Strikethrough,
-  CodeInline,
-  LineBreak,
+  Highlight,
+  Spoiler,
   Link,
   LinkKind,
-  ImageInline,
-  Mark,
+  CodeInline,
   MathInline,
   QuoteInline,
-  Spoiler,
-  CommentInline,
-
-  // Special segments
-  Meta,
-  RefDefinition,
-  ListItem,
-  TaskItem,
-  Column,
-  Row,
-  Cell,
+  ImageInline,
+  EmbedImageInline,
+  Mark,
+  LineBreak,
   Variable,
 
-  // Attributes & diagnostics
+  // Special segments and values
+  Meta,
+  ListItem,
+  TaskItem,
+  FileBlock,
+  Row,
+  Cell,
+  Column,
+  ColumnAlign,
+  PathResourceLocator,
+  QueryParam,
+
+  // Attributes, comments, diagnostics
   Attribute,
-  AttributeValue,
-  AttrsParseResult,
+  JsonValue,
+  LineReflection,
+  SegmentReflection,
+  Loc,
   Diagnostic,
   DiagnosticLevel,
 
@@ -161,7 +165,7 @@ Returned by `parse()` and `pipeline()(...)`. Holds the document tree and any dia
 | Property / Method | Type           | Description                                                       |
 | ----------------- | -------------- | ----------------------------------------------------------------- |
 | `.ast`            | `Document`     | Root node of the parsed document                                  |
-| `.diagnostics`    | `Diagnostic[]` | Warnings and errors (CDN codes)                                   |
+| `.diagnostics`    | `Diagnostic[]` | Warnings (CDN codes)                                              |
 | `.walk(visitors)` | `void`         | Exit-only traversal; visitor returns a replacement node or `void` |
 
 `walk()` is typed to `TMap` — after `pipeline()` folds in plugins, visitor arguments narrow to the enriched node shapes the plugins declared.
@@ -188,102 +192,75 @@ result.walk({
 
 ### AST node types
 
+The shapes follow the spec's AST reference (Appendix A). Every segment names its kind in `_type`; property names that begin with `_` are reserved for structure. The AST has no `null` except `Page.meta` and a path locator that holds no valid path.
+
 #### Document structure
 
-| Type       | Key fields                                |
-| ---------- | ----------------------------------------- |
-| `Document` | `children: Page[]`                        |
-| `Page`     | `meta: Meta \| null`, `children: Block[]` |
+| Type       | Key fields                                                                    |
+| ---------- | ----------------------------------------------------------------------------- |
+| `Document` | `children: Page[]`                                                            |
+| `Page`     | `meta: Meta \| null`, `reflections: SegmentReflection[]`, `children: Block[]` |
 
 #### Block nodes
 
-| Type            | Key fields                                                                                                                         |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `Section`       | `level: number`, `heading: Inline[]`, `children: Block[]`, `attributes`                                                            |
-| `Paragraph`     | `children: Inline[]`, `attributes`                                                                                                 |
-| `ThematicBreak` | `attributes`                                                                                                                       |
-| `CodeBlock`     | `language: string`, `raw: string`, `attributes`                                                                                    |
-| `Meta`          | `format: string`, `raw: string`                                                                                                    |
-| `QuoteBlock`    | `children: Block[]`, `attributes`                                                                                                  |
-| `List`          | `kind: 'bullet' \| 'numbered' \| 'checklist'`, `start: number \| null`, `loose: boolean`, `children: ListItemLike[]`, `attributes` |
-| `ListItem`      | `children: (Block \| Inline)[]`, `attributes?`                                                                                     |
-| `TaskItem`      | `checked: boolean`, `children: (Block \| Inline)[]`, `attributes`                                                                  |
-| `Table`         | `kind: TableKind`, `head: Row[]`, `body: Row[]`, `columns: Column[]`, `attributes`                                                 |
-| `Row`           | `children: Cell[]`, `attributes`                                                                                                   |
-| `Cell`          | `row: number`, `column: number`, `children: Inline[]`                                                                              |
-| `Column`        | `align: ColumnAlign`                                                                                                               |
-| `FileRef`       | `path: string`, `query: string`, `fragment: string`, `attributes`                                                                  |
-| `ImageBlock`    | `alt: Inline[]`, `src: string`, `attributes`                                                                                       |
-| `FileRefGroup`  | `group: FileGroup`, `children: (FileRef \| ImageBlock)[]`, `attributes`                                                            |
-| `NamedBlock`    | `name: string`, `children: Block[]`, `attributes`                                                                                  |
-| `RefDefinition` | `id: string`, `children: Inline[]`, `attributes`                                                                                   |
-| `MathBlock`     | `raw: string`, `attributes`                                                                                                        |
-| `SpoilerBlock`  | `children: Block[]`, `attributes` — `^^^`-fenced; body parsed as blocks; does not nest (§4.15)                                     |
-| `CommentBlock`  | `text: string` — opaque body between `###` fences (§2.3)                                                                           |
+| Type            | Key fields                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `Section`       | `level: 1..9`, `heading: Inline[]`, `children: Block[]`, `attributes`, `reflections`                              |
+| `Paragraph`     | `children: Inline[]`, `attributes`, `reflections`                                                                 |
+| `CodeBlock`     | `language: string`, `raw: string`, `caption: Inline[]`, `attributes`, `reflections`                               |
+| `MathBlock`     | `raw: string`, `caption: Inline[]`, `attributes`, `reflections`                                                   |
+| `QuoteBlock`    | `children: Inline[] \| Block[]`, `caption: Inline[]`, `attributes`, `reflections`                                 |
+| `List`          | `kind: 'bullet' \| 'numbered' \| 'checklist'`, `start: number`, `loose: boolean`, `children`, `attributes`        |
+| `Table`         | `rows: Row[]`, `columns: Column[]`, `caption: Inline[]`, `attributes`                                             |
+| `FileGroup`     | `children: FileBlock[]`, `attributes`                                                                             |
+| `EmbedBlock`    | `url: string`, `caption: Inline[]`, `attributes`, `reflections`                                                   |
+| `InjectBlock`   | `raw: string`, `src: PathResourceLocator \| null`, `children: Block[]` (always `[]`), `attributes`, `reflections` |
+| `NamedBlock`    | `name: string`, `children: Inline[] \| Block[]`, `caption: Inline[]`, `attributes`, `reflections`                 |
+| `SpoilerBlock`  | `children: Inline[] \| Block[]`, `caption: Inline[]`, `attributes`, `reflections`                                 |
+| `RefDefinition` | `ref: string`, `children: Inline[]`, `attributes`, `reflections`                                                  |
+
+#### Special segments
+
+| Type        | Key fields                                                                                          |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `Meta`      | `format: 'yaml' \| 'toml' \| 'json'`, `raw: string` — fills `Page.meta`, never in `children`        |
+| `ListItem`  | `children: Inline[] \| Block[]`, `attributes`, `reflections`                                        |
+| `TaskItem`  | `checked: boolean`, `children: Inline[] \| Block[]`, `attributes`, `reflections`                    |
+| `FileBlock` | `raw: string`, `src: PathResourceLocator \| null`, `caption: Inline[]`, `attributes`, `reflections` |
+| `Row`       | `_type: 'Row' \| 'Header'`, `children: Cell[]`, `attributes`, `reflections`                         |
+| `Cell`      | `children: Inline[]`, `row: number`, `column: number`                                               |
+| `Column`    | `align: 'start' \| 'left' \| 'right' \| 'center' \| 'comma' \| 'decimal'`                           |
+
+A container whose body is exactly one paragraph holds that paragraph's `Inline[]`; any other body is `Block[]`. The two never mix.
 
 #### Inline nodes
 
-| Type            | Key fields                                                                                   |
-| --------------- | -------------------------------------------------------------------------------------------- |
-| `Text`          | `value: string`                                                                              |
-| `Emphasis`      | `children: Inline[]`, `attributes`                                                           |
-| `Strong`        | `children: Inline[]`, `attributes`                                                           |
-| `Strikethrough` | `children: Inline[]`, `attributes`                                                           |
-| `CodeInline`    | `value: string`, `attributes`                                                                |
-| `LineBreak`     | _(no fields)_                                                                                |
-| `Link`          | `kind: LinkKind`, `href: string`, `target: string`, `children: Inline[]`, `attributes`       |
-| `ImageInline`   | `alt: Inline[]`, `src: string`, `attributes`                                                 |
-| `Mark`          | `name: string`, `children: Inline[]`, `attributes`                                           |
-| `MathInline`    | `formula: string`, `attributes`                                                              |
-| `Variable`      | `key: string`, `attributes`                                                                  |
-| `QuoteInline`   | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                             |
-| `Spoiler`       | `children: Inline[]`, `attributes` — `^^…^^` delimited; rendering chosen by consumer (§5.12) |
-| `CommentInline` | `text: string` — line comment opened by `##`, runs to EOL (§2.2)                             |
-
-#### Discriminant unions
+| Type               | Key fields                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Text`             | `value: string`                                                                                                                            |
+| `Emphasis`         | `children: Inline[]`, `attributes`                                                                                                         |
+| `Strong`           | `children: Inline[]`, `attributes`                                                                                                         |
+| `Highlight`        | `children: Inline[]`, `attributes`                                                                                                         |
+| `Spoiler`          | `children: Inline[]`, `attributes`                                                                                                         |
+| `Link`             | `kind: LinkKind`, `children: Inline[]`, `href: string`, `raw: string`, `path: PathResourceLocator \| null`, `target: string`, `attributes` |
+| `CodeInline`       | `value: string`, `attributes`                                                                                                              |
+| `MathInline`       | `formula: string`, `attributes`                                                                                                            |
+| `QuoteInline`      | `kind: 'double' \| 'single'`, `children: Inline[]`, `attributes`                                                                           |
+| `ImageInline`      | `alt: Inline[]`, `raw: string`, `src: PathResourceLocator \| null`, `attributes`                                                           |
+| `EmbedImageInline` | `alt: Inline[]`, `url: string`, `attributes`                                                                                               |
+| `Mark`             | `name: string`, `children: Inline[]`, `attributes`                                                                                         |
+| `LineBreak`        | _(no fields)_                                                                                                                              |
+| `Variable`         | `key: string`, `attributes`                                                                                                                |
 
 ```ts
-type Block =
-  | Section
-  | Paragraph
-  | ThematicBreak
-  | CodeBlock
-  | Meta
-  | QuoteBlock
-  | List
-  | Table
-  | FileRef
-  | ImageBlock
-  | FileRefGroup
-  | NamedBlock
-  | RefDefinition
-  | MathBlock
-  | SpoilerBlock
-  | CommentBlock
+type LinkKind = 'external' | 'page' | 'id' | 'ref' | 'tag' | 'cite'
 
-type Inline =
-  | Text
-  | Emphasis
-  | Strong
-  | Strikethrough
-  | CodeInline
-  | LineBreak
-  | Link
-  | ImageInline
-  | Mark
-  | MathInline
-  | Variable
-  | QuoteInline
-  | Spoiler
-  | CommentInline
-
-type LinkKind = 'external' | 'page' | 'tag' | 'ref' | 'cite'
-type TableKind = 'simple' | 'gfm'
-type ColumnAlign = 'left' | 'right' | 'center' | 'comma' | 'decimal'
-type FileGroup = 'image' | 'video' | 'audio'
+interface PathResourceLocator {
+  path: string // normalized, from the project root
+  query: { key: string; value: string }[]
+  fragment: string
+}
 ```
-
-In contrast to CommonMark's 3-level node hierarchy (Block / Container / Inline), Cutdown has a flat registry of 31 distinct node types. Even `Block` and `Inline` doesn't cover all segments. `Meta`,`RefDefinition`,`ListItem`,`TaskItem`,`Column`,`Row`,`Cell`,`Variable` are all special segments. Each segment has a `type` field that discriminates its shape, and visitors in plugins can narrow on that type for precise transformations.
 
 ---
 
@@ -294,9 +271,15 @@ Every node that carries `attributes: Attribute[]` uses this shape:
 ```ts
 type Attribute =
   | { key: 'id'; value: string } // {#my-id}
-  | { key: 'class'; value: string[] } // {.foo .bar}
-  | { key: string; value: string } // {key=value} or bare {flag}
+  | { key: 'class'; value: string[] } // {.foo .bar class="baz"}
+  | { key: string; value: string | JsonObject | JsonArray } // {key=value}, bare {flag}, {data={"a":1}}
 ```
+
+---
+
+### Comments
+
+Comments produce no node. A `##` comment on a line that belongs to a block is a `LineReflection` (`{ loc, text }`) in that node's `reflections`. A `###` CommentBlock and a `##` line standing between blocks are `SegmentReflection`s (`{ loc, text, before }`) in `Page.reflections`, where `before` is the child-index path of the block the comment stands before.
 
 ---
 
@@ -305,14 +288,13 @@ type Attribute =
 ```ts
 interface Diagnostic {
   code: string // CDN-XXXX code from the spec
-  level: 'warning' | 'error'
-  message?: string
+  level: 'warning' | 'info'
+  loc?: Loc
+  message: string
 }
 ```
 
-Diagnostics are collected during parsing and never thrown. Check `result.diagnostics` after every parse in strict pipelines.
-
-As for now Spec describes apostates that emits diagnostics with level=`warning` only, but the structure allows for `error` level diagnostics in the future if needed. As for now Spec (and this parser) tries read document as best as it can, never throwing or bailing on errors. This is a core principle of Cutdown design — robustness and predictability over strictness. Even in the presence of malformed syntax, the parser produces an AST and a list of diagnostics without throwing exceptions.
+Diagnostics are collected during parsing and never thrown. Every input is a valid document: the parser always produces an AST, and a diagnostic only records where it recovered from input the author probably did not mean. There is no `error` level; a tool may still treat any warning as a failure of its own.
 
 ---
 
@@ -333,7 +315,7 @@ type Visitors<TMap> = { [K in keyof TMap]?: (node: TMap[K]) => TMap[K] | void }
 
 ### `NodeMap`
 
-Flat registry of all 31 visitable segment types, keyed by their `type` discriminant. Used as the base type parameter throughout the pipeline system. Rarely needed directly — it is the default `TMap` on `ASTResult<NodeMap>` and the constraint for `Visitors` and `PluginDelta`.
+Flat registry of all 34 visitable segment types, keyed by their `_type` discriminant. Used as the base type parameter throughout the pipeline system. Rarely needed directly — it is the default `TMap` on `ASTResult<NodeMap>` and the constraint for `Visitors` and `PluginDelta`.
 
 ---
 

@@ -1,178 +1,271 @@
-import type { Attribute, Diagnostic, AttrsParseResult } from '../types/document/common.ts'
-import { isIdChar } from './utils.ts'
+import type { Attribute, Diagnostic } from '../types/document'
+import { parseJsonValue } from './json.ts'
+import { LIMITS, diag, isControl, isIdChar, isIdValue, isUnicodeWs, trimWsEnd } from './utils.ts'
+
+export type AttrScan =
+  | { ok: true; end: number; attrs: Attribute[]; diagnostics: Diagnostic[] }
+  | { ok: false; sliceEnd: number }
+
+const isSep = (c: string | undefined) => c === ' ' || c === '\t' || c === '\n'
 
 /**
- * Parse the content of a single `{...}` attribute block (including braces).
- * Handles: #id  .class  key=value  key="spaced value"  bare-key
+ * §6.1.1 Scan one attribute group starting at the `{` at `i`. `s` is an inline
+ * source in which `\n` marks a soft break: the line end separates tokens, and
+ * no token crosses it.
  *
- * Ordering: attributes are emitted in the order they appear in the block.
- * Multiple .class tokens are merged into a single class entry at the position
- * of the first .class token.
+ * A group that violates the grammar, or whose `}` never arrives, reports the
+ * end of its verbatim slice (§6.1.3): the `}` or the end of the `{`'s own
+ * line, whichever comes first.
  */
-export function parseAttrBlock(raw: string): AttrsParseResult {
-  const diagnostics: Diagnostic[] = []
-
-  const inner = raw.trim()
-  if (!inner.startsWith('{') || !inner.endsWith('}')) {
-    return { attrs: [], diagnostics, valid: false }
-  }
-  const content = inner.slice(1, -1).trim()
-  if (content === '') return { attrs: [], diagnostics, valid: true }
-
-  let valid = true
-
-  const result: Attribute[] = []
-  let classPlaceholderIdx = -1
-  let classValues: string[] = []
-  let seenId = false
-  let hasClassDot = false
-  let hasClassKey = false
-  const seenCustomKeys = new Set<string>()
-
-  let i = 0
-  while (i < content.length) {
-    while (i < content.length && content[i] === ' ') i++
-    if (i >= content.length) break
-
-    const c = content[i]
+export function scanAttrGroup(s: string, i: number, to: number = s.length): AttrScan {
+  const fail = (): AttrScan => ({ ok: false, sliceEnd: sliceEnd(s, i, to) })
+  const g = new GroupBuilder()
+  let p = i + 1
+  let first = true
+  for (;;) {
+    let sep = false
+    while (p < to && isSep(s[p])) {
+      p++
+      sep = true
+    }
+    if (p >= to) return fail()
+    const c = s[p]!
+    if (c === '}') {
+      const { attrs, diagnostics } = g.finish()
+      return { ok: true, end: p + 1, attrs, diagnostics }
+    }
+    if (!first && !sep) return fail()
+    first = false
 
     if (c === '#') {
-      i++
-      const start = i
-      while (i < content.length && isIdChar(content[i] || '')) i++
-      const id = content.slice(start, i)
-      if (id === '') {
-        valid = false
-        continue
-      }
-      if (seenId) {
-        diagnostics.push({ code: 'CDN-0020', level: 'warning' })
-        continue
-      }
-      seenId = true
-      result.push({ key: 'id', value: id })
+      const start = ++p
+      while (p < to && !isSep(s[p]) && s[p] !== '}' && !isControl(s[p]!)) p++
+      if (p === start) return fail()
+      g.id(s.slice(start, p))
     } else if (c === '.') {
-      i++
-      const start = i
-      while (i < content.length && isIdChar(content[i] || '')) i++
-      const cls = content.slice(start, i)
-      if (cls === '') {
-        valid = false
+      const start = ++p
+      while (p < to && isClassChar(s[p]!)) p++
+      if (p === start) return fail()
+      g.classes([s.slice(start, p)])
+    } else if (isIdChar(c) && c !== '.') {
+      const start = p
+      while (p < to && isIdChar(s[p])) p++
+      const key = s.slice(start, p)
+      if (s[p] !== '=') {
+        g.flag(key)
         continue
       }
-      hasClassDot = true
-      if (classPlaceholderIdx === -1) {
-        classPlaceholderIdx = result.length
-        result.push({ key: 'class', value: [] })
-      }
-      classValues.push(cls)
-    } else {
-      const start = i
-      while (i < content.length && content[i] !== '=' && content[i] !== ' ') i++
-      const key = content.slice(start, i)
-      if (key === '') {
-        i++
-        continue
-      }
-      if (!/^[a-zA-Z0-9._-]+$/.test(key)) valid = false
-
-      if (i < content.length && content[i] === '=') {
-        i++
-        let value: string
-        if (i < content.length && content[i] === '"') {
-          i++
-          const vs = i
-          while (i < content.length && content[i] !== '"') i++
-          value = content.slice(vs, i)
-          if (i < content.length) i++
-          else valid = false
-        } else {
-          const vs = i
-          while (i < content.length && content[i] !== ' ') i++
-          value = content.slice(vs, i)
-        }
-
-        if (key === 'class') {
-          if (hasClassDot) {
-            diagnostics.push({ code: 'CDN-0021', level: 'warning' })
+      p++
+      const v = s[p]
+      if (v === '"') {
+        let out = ''
+        p++
+        for (;;) {
+          const d = s[p]
+          if (p >= to || d === undefined || d === '\n') return fail()
+          if (d === '"') break
+          if (d === '\\') {
+            const e = s[p + 1]
+            if (e === undefined || e === '\n' || isControl(e)) return fail()
+            // §6.1.1: `\"` gives `"`; `\\` and every other pair stay for the consumer.
+            out += e === '"' ? '"' : d + e
+            p += 2
             continue
           }
-          if (hasClassKey) {
-            diagnostics.push({ code: 'CDN-0022', level: 'warning' })
-            continue
-          }
-          hasClassKey = true
-          result.push({ key: 'class', value })
-          continue
+          if (isControl(d)) return fail()
+          out += d
+          p++
         }
-
-        if (seenCustomKeys.has(key)) {
-          diagnostics.push({ code: 'CDN-0022', level: 'warning' })
-          continue
-        }
-        seenCustomKeys.add(key)
-        result.push({ key, value })
+        p++
+        if (!g.value(key, out)) return fail()
+      } else if (v === '{' || v === '[') {
+        const json = parseJsonValue(s.slice(0, to), p)
+        if (!json || key === 'id' || key === 'class') return fail()
+        p = json.end
+        g.json(key, json.value)
       } else {
-        if (seenCustomKeys.has(key)) {
-          diagnostics.push({ code: 'CDN-0022', level: 'warning' })
-          continue
-        }
-        seenCustomKeys.add(key)
-        result.push({ key, value: '' })
+        const start = p
+        while (p < to && !isSep(s[p]) && s[p] !== '}' && s[p] !== '"' && !isControl(s[p]!)) p++
+        if (!g.value(key, s.slice(start, p))) return fail()
       }
+    } else return fail()
+  }
+}
+
+/** CLASS_NAME characters (§6.1.1) */
+const isClassChar = (c: string) =>
+  c !== '\n' && !isUnicodeWs(c) && !isControl(c) && c !== '{' && c !== '}' && c !== '"' && c !== '=' && c !== '#'
+
+/** End of a dead `{` slice: the closing `}` or the end of the `{`'s own line. */
+function sliceEnd(s: string, i: number, to: number): number {
+  let depth = 0
+  let inString = false
+  for (let k = i; k < to; k++) {
+    const c = s[k]
+    if (c === '\n') return k
+    if (inString) {
+      if (c === '\\') k++
+      else if (c === '"') inString = false
+      continue
+    }
+    if (c === '"') inString = true
+    else if (c === '{') depth++
+    else if (c === '}' && --depth === 0) return k + 1
+  }
+  return to
+}
+
+/** Accumulates the entries of one group with the §6.1.1 dedup and limit rules. */
+class GroupBuilder {
+  private entries: Attribute[] = []
+  private classList: string[] | null = null
+  private hasId = false
+  private keys = new Set<string>()
+  private diagnostics: Diagnostic[] = []
+  private classOverflow = false
+  private entryOverflow = false
+
+  private add(a: Attribute): void {
+    if (this.entries.length >= LIMITS.attrEntries) {
+      this.entryOverflow = true
+      return
+    }
+    this.entries.push(a)
+  }
+
+  id(raw: string): void {
+    if (this.hasId) {
+      this.diagnostics.push(diag('CDN-0020'))
+      return
+    }
+    if (this.entries.length >= LIMITS.attrEntries) {
+      this.entryOverflow = true
+      return
+    }
+    this.hasId = true
+    if (!isIdValue(raw)) this.diagnostics.push(diag('CDN-0037', undefined, raw))
+    this.add({ key: 'id', value: raw.normalize('NFC') })
+  }
+
+  classes(names: string[]): void {
+    for (const name of names) {
+      if (name === '') continue
+      if (this.classList === null) {
+        if (this.entries.length >= LIMITS.attrEntries) {
+          this.entryOverflow = true
+          return
+        }
+        this.classList = []
+        this.add({ key: 'class', value: this.classList })
+      }
+      if (this.classList.includes(name)) continue
+      if (this.classList.length >= LIMITS.classes) {
+        this.classOverflow = true
+        continue
+      }
+      this.classList.push(name)
     }
   }
 
-  if (classPlaceholderIdx >= 0 && classValues.length > 0) {
-    result[classPlaceholderIdx] = { key: 'class', value: classValues }
+  flag(key: string): void {
+    this.value(key, '')
   }
 
-  const finalResult = result.filter((a) => {
-    return !(a.key === 'class' && Array.isArray(a.value) && (a.value as string[]).length === 0)
-  })
+  /** Returns false when the value violates the grammar for its key. */
+  value(key: string, value: string): boolean {
+    if (key === 'id') {
+      this.id(value)
+      return true
+    }
+    if (key === 'class') {
+      this.classes(value.split(/[ \t]+/))
+      return true
+    }
+    if (this.keys.has(key)) {
+      this.diagnostics.push(diag('CDN-0022', undefined, key))
+      return true
+    }
+    this.keys.add(key)
+    this.add({ key, value })
+    return true
+  }
 
-  return { attrs: finalResult, diagnostics, valid }
+  json(key: string, value: Attribute['value']): void {
+    if (this.keys.has(key)) {
+      this.diagnostics.push(diag('CDN-0022', undefined, key))
+      return
+    }
+    this.keys.add(key)
+    this.add({ key, value } as Attribute)
+  }
+
+  finish(): { attrs: Attribute[]; diagnostics: Diagnostic[] } {
+    if (this.classOverflow) this.diagnostics.push(diag('CDN-0034'))
+    if (this.entryOverflow) this.diagnostics.push(diag('CDN-0041'))
+    return { attrs: this.entries, diagnostics: this.diagnostics }
+  }
 }
 
 /**
- * Extract and parse all consecutive `{...}` blocks from the END of a string.
- * Returns: stripped text + groups (left-to-right order) + diagnostics.
- *
- * Used for scope-chain distribution (§5.2).
+ * A run of attribute groups that makes up the whole of `text` (whitespace
+ * between and around them allowed), or null. Used for attribute lines and
+ * the trailing attribute sequence of a FileBlock, EmbedBlock, or fence line.
  */
-export function extractTrailingAttrGroups(text: string): {
-  text: string
-  groups: Attribute[][]
-  diagnostics: Diagnostic[]
-} {
-  const allDiagnostics: Diagnostic[] = []
+export function parseGroupRun(text: string): { groups: Attribute[][]; diagnostics: Diagnostic[] } | null {
   const groups: Attribute[][] = []
-  let s = text.trimEnd()
-
-  while (s.endsWith('}')) {
-    const end = s.length
-    let depth = 0
-    let start = end - 1
-    let found = false
-    for (let i = end - 1; i >= 0; i--) {
-      if (s[i] === '}') depth++
-      else if (s[i] === '{') {
-        depth--
-        if (depth === 0) {
-          start = i
-          found = true
-          break
-        }
-      }
-    }
-    if (!found || depth !== 0) break
-
-    const block = s.slice(start, end)
-    const { attrs, diagnostics } = parseAttrBlock(block)
-    allDiagnostics.push(...diagnostics)
-    groups.unshift(attrs)
-    s = s.slice(0, start).trimEnd()
+  const diagnostics: Diagnostic[] = []
+  let p = 0
+  for (;;) {
+    while (p < text.length && (text[p] === ' ' || text[p] === '\t')) p++
+    if (p >= text.length) break
+    if (text[p] !== '{' || text[p + 1] === '{') return null
+    const r = scanAttrGroup(text, p)
+    if (!r.ok) return null
+    groups.push(r.attrs)
+    diagnostics.push(...r.diagnostics)
+    p = r.end
   }
+  return groups.length > 0 ? { groups, diagnostics } : null
+}
 
-  return { text: s, groups, diagnostics: allDiagnostics }
+/**
+ * Split a line into its body and one trailing attribute sequence: whitespace
+ * followed by one or more `{…}` groups that close the line (§8.1). With
+ * `needWs: false` the sequence may follow the body directly.
+ */
+export function splitTrailingGroups(
+  line: string,
+  needWs = true
+): { body: string; groups: Attribute[][]; diagnostics: Diagnostic[] } {
+  for (let k = 0; k < line.length; k++) {
+    if (line[k] === '\\') {
+      k++
+      continue
+    }
+    if (line[k] !== '{' || line[k + 1] === '{') continue
+    if (needWs && k > 0 && line[k - 1] !== ' ' && line[k - 1] !== '\t') continue
+    if (needWs && k === 0) continue
+    const run = parseGroupRun(line.slice(k))
+    if (run) return { body: trimWsEnd(line.slice(0, k)), ...run }
+  }
+  return { body: line, groups: [], diagnostics: [] }
+}
+
+/**
+ * Merge attributes moving onto a node that may already carry some: the node's
+ * own entries come first, classes merge by §6.1.1, and a key it already has
+ * is kept.
+ */
+export function mergeAttrs(own: Attribute[], incoming: Attribute[]): Attribute[] {
+  if (own.length === 0) return incoming
+  const out = own.map((a) => (a.key === 'class' ? { key: 'class' as const, value: [...(a.value as string[])] } : a))
+  for (const a of incoming) {
+    const existing = out.find((b) => b.key === a.key)
+    if (!existing) out.push(a)
+    else if (a.key === 'class') {
+      const list = existing.value as string[]
+      for (const c of a.value as string[]) if (!list.includes(c)) list.push(c)
+    }
+  }
+  return out
 }

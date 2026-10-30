@@ -1,240 +1,204 @@
-import type { Attribute } from './common.ts'
+import type { Attribute, LineReflection, PathResourceLocator, SegmentReflection } from './common.ts'
 import type { Inline } from './inline.ts'
-
-// ─── Reflection ───────────────────────────────────────────────────────────────
-
-export interface Loc {
-  start: number
-  end: number
-}
-
-export interface Reflection {
-  /** Source range of the `##` payload — raw-file UTF-16 code-unit offsets, end-exclusive */
-  loc?: Loc
-  text: string
-}
 
 // ─── Document / Page ─────────────────────────────────────────────────────────
 
 export interface Document {
-  type: 'Document'
+  _type: 'Document'
   children: Page[]
 }
 
 export interface Page {
+  _type: 'Page'
   meta: Meta | null
+  /** §7.3: every CommentBlock and orphan `##` line on the Page, at any depth, in source order */
+  reflections: SegmentReflection[]
   children: Block[]
 }
-
-// ─── Parse result ─────────────────────────────────────────────────────────────
 
 // ─── Block union ──────────────────────────────────────────────────────────────
 
 export type Block =
-  | Section
   | Paragraph
+  | Section
   | CodeBlock
+  | MathBlock
   | QuoteBlock
   | List
   | Table
-  | FileRef
-  | ImageBlock
-  | FileRefGroup
+  | FileGroup
+  | EmbedBlock
+  | InjectBlock
   | NamedBlock
-  | RefDefinition
-  | MathBlock
   | SpoilerBlock
-  | CommentBlock
-
-/**
- * A block as it exists *during* parsing. `PageBreak` and `Meta` are consumed by
- * the pagination fold (§9.5.2) — a `PageBreak` reaches no consumer at all, and a
- * `Meta` reaches one only through `Page.meta` — so neither is a `Block`.
- */
-export type ParseBlock = Block | PageBreak | Meta
-
-/**
- * §14.5: a synthetic segment. No parse produces a `Fragment` — a consumer that
- * materializes a transclusion does — but a conforming consumer must accept one.
- */
-export interface Fragment {
-  type: 'Fragment'
-  meta: Meta | null
-  children: Block[]
-}
-
-export interface CommentBlock {
-  type: 'CommentBlock'
-  text: string
-  reflection?: Reflection[]
-}
+  | RefDefinition
 
 // ─── Block nodes ──────────────────────────────────────────────────────────────
+
+export interface Paragraph {
+  _type: 'Paragraph'
+  children: Inline[]
+  attributes: Attribute[]
+  reflections: LineReflection[]
+}
 
 export type SectionLevel = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
 
 export interface Section {
-  type: 'Section'
+  _type: 'Section'
   level: SectionLevel
   heading: Inline[]
-  attributes: Attribute[]
   children: Block[]
-  reflection?: Reflection[]
-}
-
-export interface Paragraph {
-  type: 'Paragraph'
-  children: Inline[]
   attributes: Attribute[]
-  reflection?: Reflection[]
-}
-
-/**
- * Internal pagination marker for a top-level `---` line. Consumed by the
- * pagination fold — it never appears in the emitted Document tree.
- */
-export interface PageBreak {
-  type: 'PageBreak'
-}
-
-export interface CodeBlock {
-  type: 'CodeBlock'
-  language: string
-  raw: string
-  attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  reflections: LineReflection[]
 }
 
 export type MetaFormat = 'yaml' | 'toml' | 'json'
 
+/** §4.3: fills `Page.meta`; never appears in `Page.children`. */
 export interface Meta {
-  type: 'Meta'
+  _type: 'Meta'
   format: MetaFormat
   raw: string
 }
 
-export interface QuoteBlock {
-  type: 'QuoteBlock'
-  children: Block[]
+export interface CodeBlock {
+  _type: 'CodeBlock'
+  language: string
+  raw: string
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
+  reflections: LineReflection[]
+}
+
+export interface MathBlock {
+  _type: 'MathBlock'
+  raw: string
+  attributes: Attribute[]
+  caption: Inline[]
+  reflections: LineReflection[]
+}
+
+/** §4.6: a body that parses to exactly one Paragraph is held as its `Inline[]`. */
+export interface QuoteBlock {
+  _type: 'QuoteBlock'
+  children: Inline[] | Block[]
+  attributes: Attribute[]
+  caption: Inline[]
+  reflections: LineReflection[]
 }
 
 export type ListItemLike = ListItem | TaskItem
 
 export interface List {
-  type: 'List'
+  _type: 'List'
   kind: 'bullet' | 'numbered' | 'checklist'
-  start: number | null
+  /** first item number for kind "numbered"; 1 otherwise */
+  start: number
   loose: boolean
   children: ListItemLike[]
   attributes: Attribute[]
-  reflection?: Reflection[]
 }
 
 export interface ListItem {
-  type: 'ListItem'
-  children: (Block | Inline)[]
+  _type: 'ListItem'
+  children: Inline[] | Block[]
   attributes: Attribute[]
+  reflections: LineReflection[]
 }
 
 export interface TaskItem {
-  type: 'TaskItem'
+  _type: 'TaskItem'
   checked: boolean
-  children: (Block | Inline)[]
+  children: Inline[] | Block[]
   attributes: Attribute[]
+  reflections: LineReflection[]
 }
 
 export type ColumnAlign = 'start' | 'left' | 'right' | 'center' | 'comma' | 'decimal'
 
 export interface Column {
-  type: 'Column'
+  _type: 'Column'
   align: ColumnAlign
 }
 
 export interface Cell {
-  type: 'Cell'
+  _type: 'Cell'
   children: Inline[]
   row: number
   column: number
 }
 
 export interface Row {
-  type: 'Row' | 'Header'
+  _type: 'Row' | 'Header'
   children: Cell[]
   attributes: Attribute[]
+  reflections: LineReflection[]
 }
 
 export interface Table {
-  type: 'Table'
+  _type: 'Table'
   rows: Row[]
   columns: Column[]
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
 }
 
-export type FileGroup = 'image' | 'video' | 'audio'
-
-export interface FileRef {
-  type: 'FileRef'
-  path: string
-  query: string
-  fragment: string
+/** §4.11: only ever a child of a FileGroup. */
+export interface FileBlock {
+  _type: 'FileBlock'
+  raw: string
+  src: PathResourceLocator | null
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
+  reflections: LineReflection[]
 }
 
-export interface ImageBlock {
-  type: 'ImageBlock'
-  alt: Inline[]
-  src: string
+export interface FileGroup {
+  _type: 'FileGroup'
+  children: FileBlock[]
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
 }
 
-export interface FileRefGroup {
-  type: 'FileRefGroup'
-  group: FileGroup
-  children: (FileRef | ImageBlock)[]
+export interface EmbedBlock {
+  _type: 'EmbedBlock'
+  url: string
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
+  reflections: LineReflection[]
+}
+
+/** §4.17: the parser always emits `children: []`; a consumer fills it (§9). */
+export interface InjectBlock {
+  _type: 'InjectBlock'
+  raw: string
+  src: PathResourceLocator | null
+  children: Block[]
+  attributes: Attribute[]
+  reflections: LineReflection[]
 }
 
 export interface NamedBlock {
-  type: 'NamedBlock'
+  _type: 'NamedBlock'
   name: string
-  children: Block[]
+  children: Inline[] | Block[]
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
-}
-
-export interface RefDefinition {
-  type: 'RefDefinition'
-  ref: string
-  children: Inline[]
-  attributes: Attribute[]
-  reflection?: Reflection[]
-}
-
-export interface MathBlock {
-  type: 'MathBlock'
-  raw: string
-  attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
+  reflections: LineReflection[]
 }
 
 export interface SpoilerBlock {
-  type: 'SpoilerBlock'
-  children: Block[]
+  _type: 'SpoilerBlock'
+  children: Inline[] | Block[]
   attributes: Attribute[]
-  caption?: Inline[]
-  reflection?: Reflection[]
+  caption: Inline[]
+  reflections: LineReflection[]
+}
+
+export interface RefDefinition {
+  _type: 'RefDefinition'
+  ref: string
+  children: Inline[]
+  attributes: Attribute[]
+  reflections: LineReflection[]
 }

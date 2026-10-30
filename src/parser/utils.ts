@@ -1,124 +1,137 @@
-import type { AttrsParseResult, ColumnAlign, FileGroup } from '../types/document'
+import type { Diagnostic, Loc } from '../types/document'
 
-// ─── ID_LITERAL helpers ───────────────────────────────────────────────────────
+// ─── Character classes (§1.3, §1.4, §2.1) ────────────────────────────────────
 
-export function isIdStart(c: string): boolean {
-  return /[a-zA-Z0-9]/.test(c)
-}
-
-export function isIdChar(c: string): boolean {
-  return /[a-zA-Z0-9._-]/.test(c)
-}
-
-// ─── List detection ───────────────────────────────────────────────────────────
-
-export function isListMarkerLine(line: string): boolean {
-  return /^\d+\. /.test(line) || line.startsWith('- ') || line.startsWith('- [')
-}
-
-// ─── Table helpers ────────────────────────────────────────────────────────────
+/** §1.4 WHITESPACE: space and tab only. */
+export const isWs = (c: string | undefined): boolean => c === ' ' || c === '\t'
 
 /**
- * §4.8: a header separator is a `|` row whose every cell is an alignment
- * pattern — optional `:` prefix, ≥ 3 dashes, optional `:` / `,` / `.` suffix —
- * optionally space-padded. `| - |` placeholder rows fail the 3-dash guard and
- * stay content.
+ * Whitespace trims for §1.4 WHITESPACE. `String.prototype.trim` also strips
+ * U+000C, U+00A0, U+3000 and the rest of Unicode White_Space, which Cutdown
+ * reads as ordinary text.
  */
-export function isHeaderSeparatorRow(line: string): boolean {
-  const t = line.trim()
-  if (!t.startsWith('|') || !t.endsWith('|') || t.length < 2) return false
-  const cells = t.slice(1, -1).split('|')
-  if (cells.length === 0) return false
-  return cells.every((c) => /^ *:?-{3,}[:,.]? *$/.test(c))
+export function trimWsEnd(s: string): string {
+  let e = s.length
+  while (e > 0 && isWs(s[e - 1])) e--
+  return e === s.length ? s : s.slice(0, e)
+}
+export function trimWsStart(s: string): string {
+  let a = 0
+  while (a < s.length && isWs(s[a])) a++
+  return a === 0 ? s : s.slice(a)
+}
+export const trimWs = (s: string): string => trimWsStart(trimWsEnd(s))
+
+/** §1.3 CONTROL */
+export function isControl(c: string): boolean {
+  const n = c.codePointAt(0) ?? 0
+  return n <= 0x1f || n === 0x7f || (n >= 0x80 && n <= 0x9f)
 }
 
-export function splitCells(line: string): string[] {
-  const trimmed = line.trim()
-  const inner = trimmed.startsWith('|') ? trimmed.slice(1) : trimmed
-  const parts = inner.split('|')
-  if (parts[parts.length - 1]?.trim() === '') parts.pop()
-  return parts
+/** §1.4 BIDI_CONTROL: the Unicode Bidi_Control property. */
+export function isBidiControl(c: string): boolean {
+  const n = c.codePointAt(0) ?? 0
+  return n === 0x061c || n === 0x200e || n === 0x200f || (n >= 0x202a && n <= 0x202e) || (n >= 0x2066 && n <= 0x2069)
 }
 
-export function parseColumnAlign(s: string): ColumnAlign {
-  if (s.endsWith(',')) return 'comma'
-  if (s.endsWith('.')) return 'decimal'
-  if (s.startsWith(':') && s.endsWith(':')) return 'center'
-  if (s.startsWith(':')) return 'left'
-  if (s.endsWith(':')) return 'right'
-  return 'start'
+/** §1.4 UNICODE_WHITESPACE */
+export function isUnicodeWs(c: string): boolean {
+  const n = c.codePointAt(0) ?? 0
+  return (
+    (n >= 0x9 && n <= 0xd) ||
+    n === 0x20 ||
+    n === 0x85 ||
+    n === 0xa0 ||
+    n === 0x1680 ||
+    (n >= 0x2000 && n <= 0x200a) ||
+    n === 0x2028 ||
+    n === 0x2029 ||
+    n === 0x202f ||
+    n === 0x205f ||
+    n === 0x3000
+  )
 }
 
-// ─── File group detection ─────────────────────────────────────────────────────
+/** §2.1 ID_CHAR */
+export const isIdChar = (c: string | undefined): boolean => c !== undefined && /^[a-zA-Z0-9._-]$/.test(c)
 
-export function detectFileGroup(src: string): FileGroup | undefined {
-  const ext = src.split('.').pop()?.toLowerCase() ?? ''
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif'].includes(ext)) return 'image'
-  if (['mp4', 'webm', 'mov', 'avi'].includes(ext)) return 'video'
-  if (['mp3', 'wav', 'ogg', 'flac'].includes(ext)) return 'audio'
-  return undefined
-}
+/** §2.1 ID_NAME */
+export const isIdName = (s: string): boolean => /^[a-zA-Z0-9._-]+$/.test(s)
 
-// ─── Input normalisation ──────────────────────────────────────────────────────
-
-export interface NormalizedInput {
-  lines: string[]
-  /** Raw-file UTF-16 code-unit offset of each line's first character (spec §7) */
-  lineStarts: number[]
-}
-
-/**
- * Interpret raw input as an array of lines ready for block parsing, keeping the
- * raw-file offset of each line so `loc` values index the original text.
- *
- * Interpretive rules per spec §7 (the source text is never rewritten):
- *  1. A leading BOM is skipped (first content offset = 1)
- *  2. `\r\n` and lone `\r` are line terminators
- *  3. U+0000 is treated as U+FFFD; a tab is treated as one space (length-preserving)
- *  4. Document-edge blank lines are skipped by the block phase
- */
-export function normalize(input: string): NormalizedInput {
-  let pos = input.startsWith('\uFEFF') ? 1 : 0
-  const lines: string[] = []
-  const lineStarts: number[] = []
-
-  let lineStart = pos
-  let buf = ''
-  const flush = (nextStart: number) => {
-    lines.push(buf)
-    lineStarts.push(lineStart)
-    buf = ''
-    lineStart = nextStart
+/** §2.1 ID_VALUE */
+export function isIdValue(s: string): boolean {
+  if (s === '') return false
+  for (const c of s) {
+    if (isUnicodeWs(c) || c === '#' || c === ')' || c === '}' || isControl(c) || isBidiControl(c)) return false
   }
-  while (pos < input.length) {
-    const c = input[pos]
-    if (c === '\n') {
-      flush(pos + 1)
-      pos++
-    } else if (c === '\r') {
-      const skip = input[pos + 1] === '\n' ? 2 : 1
-      flush(pos + skip)
-      pos += skip
-    } else if (c === '\0') {
-      buf += '\uFFFD'
-      pos++
-    } else if (c === '\t') {
-      buf += ' '
-      pos++
-    } else {
-      buf += c
-      pos++
-    }
-  }
-  if (buf !== '') flush(pos)
-
-  // §7.6: document-edge blank lines are skipped by the block phase
-  let start = 0
-  while (start < lines.length && (lines[start] ?? '').trim() === '') start++
-  let end = lines.length
-  while (end > start && (lines[end - 1] ?? '').trim() === '') end--
-  return { lines: lines.slice(start, end), lineStarts: lineStarts.slice(start, end) }
+  return true
 }
 
-// Re-export AttrsParseResult so callers of utils don't need a separate import
-export type { AttrsParseResult }
+/** Characters a backslash escapes in inline text (§B, Escapable "Yes"). */
+const INLINE_SPECIAL = new Set('=#*_~`$^:"\'->|/\\[]()!{}')
+
+export const isInlineSpecial = (c: string | undefined): boolean => c !== undefined && INLINE_SPECIAL.has(c)
+
+/** Length in Unicode scalar values (§1.3 Units). */
+export function scalarLength(s: string): number {
+  let n = 0
+  for (const _ of s) n++
+  return n
+}
+
+/** §1.7: a path has the Cutdown extension, matched ASCII case-insensitively. */
+export const hasCutdownExtension = (path: string): boolean => path.toLowerCase().endsWith('.cutdown')
+
+// ─── Diagnostics ─────────────────────────────────────────────────────────────
+
+const MESSAGES: Record<string, string> = {
+  'CDN-0001': 'Unclosed CodeBlock fence',
+  'CDN-0002': 'Unclosed Meta fence',
+  'CDN-0003': 'Unclosed MathBlock fence',
+  'CDN-0004': 'Unclosed NamedBlock',
+  'CDN-0005': 'Unclosed SpoilerBlock fence',
+  'CDN-0006': 'Unclosed CommentBlock fence',
+  'CDN-0008': 'Orphaned caption line',
+  'CDN-0009': 'Attribute block on caption line ignored',
+  'CDN-0011': 'Orphaned scope-chain attributes',
+  'CDN-0012': 'Heading level out of range',
+  'CDN-0013': 'NamedBlock without a valid name',
+  'CDN-0014': 'Crossed inline element boundaries',
+  'CDN-0015': 'Invalid or empty Variable key',
+  'CDN-0016': 'Fence tail dropped',
+  'CDN-0017': 'Page separator inside block container',
+  'CDN-0018': 'Table row cell count exceeds column count',
+  'CDN-0020': 'Duplicate id attribute',
+  'CDN-0022': 'Duplicate custom attribute key',
+  'CDN-0030': 'Meta block inside block container',
+  'CDN-0031': 'Mark nesting depth exceeded',
+  'CDN-0032': 'Invalid path',
+  'CDN-0033': 'Invalid link target',
+  'CDN-0034': 'Class limit exceeded',
+  'CDN-0035': 'Value exceeds limit of 2048 chars',
+  'CDN-0036': 'Unsupported link form [text][target]; write [text](target)',
+  'CDN-0037': 'Invalid id',
+  'CDN-0038': 'Invalid language code',
+  'CDN-0039': 'Invalid Meta format',
+  'CDN-0040': 'Block nesting limit exceeded',
+  'CDN-0041': 'Attribute entry limit exceeded',
+  'CDN-0042': 'Query pair limit exceeded',
+}
+
+/** Every diagnostic is a warning (§17.2); `message` wording is implementation-defined. */
+export function diag(code: string, loc?: Loc, detail?: string): Diagnostic {
+  const message = (MESSAGES[code] ?? code) + (detail ? ` — ${detail}` : '')
+  return loc ? { code, level: 'warning', loc, message } : { code, level: 'warning', message }
+}
+
+/** §20.6 limits */
+export const LIMITS = {
+  blockDepth: 32,
+  markDepth: 8,
+  attrEntries: 32,
+  classes: 32,
+  queryPairs: 32,
+  valueLength: 2048,
+  jsonLength: 4096,
+  jsonDepth: 8,
+} as const

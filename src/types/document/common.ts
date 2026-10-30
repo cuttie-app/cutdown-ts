@@ -1,25 +1,64 @@
+// ─── Location ────────────────────────────────────────────────────────────────
+
+/** §A.5: raw-file UTF-16 code-unit offsets, end-exclusive. */
+export interface Loc {
+  file?: string
+  start: number
+  end: number
+}
+
 // ─── Diagnostics ─────────────────────────────────────────────────────────────
 
-export type DiagnosticLevel = 'warning' | 'error'
+/** §17.1: there is no `error` level — no input is an error. */
+export type DiagnosticLevel = 'warning' | 'info'
 
 export interface Diagnostic {
   code: string
   level: DiagnosticLevel
-  message?: string
+  loc?: Loc
+  message: string
 }
 
 // ─── Attributes ───────────────────────────────────────────────────────────────
 
-export type AttributeValue = string | string[]
+export type JsonValue = null | boolean | number | string | JsonObject | JsonArray
+export type JsonObject = { [key: string]: JsonValue }
+export type JsonArray = JsonValue[]
 
+export type AttributeValue = string | string[] | JsonObject | JsonArray
+
+/** §A.7 */
 export type Attribute =
   | { key: 'id'; value: string }
   | { key: 'class'; value: string[] }
-  | { key: string; value: string }
+  | { key: string; value: string | JsonObject | JsonArray }
 
-export interface AttrsParseResult {
-  attrs: Attribute[]
-  diagnostics: Diagnostic[]
-  /** False when the block content violates the attribute grammar (§9.4.1 literal-span idiom) */
-  valid: boolean
+// ─── Reflections ─────────────────────────────────────────────────────────────
+
+/** §7.2: a `##` comment on a line that belongs to a block. */
+export interface LineReflection {
+  loc: Loc
+  text: string
+}
+
+/** §7.3: a CommentBlock or an orphan `##` line, held on its Page. */
+export interface SegmentReflection {
+  loc: Loc
+  text: string
+  /** Child-index path to the block the comment stands before. */
+  before: number[]
+}
+
+// ─── PathResourceLocator ─────────────────────────────────────────────────────
+
+/** §8: a value, not a segment — no `_type`. */
+export interface QueryParam {
+  key: string
+  value: string
+}
+
+export interface PathResourceLocator {
+  path: string
+  query: QueryParam[]
+  fragment: string
 }

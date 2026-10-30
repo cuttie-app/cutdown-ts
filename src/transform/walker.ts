@@ -1,33 +1,5 @@
-import type {
-  Document,
-  Page,
-  Block,
-  Section,
-  Paragraph,
-  QuoteBlock,
-  List,
-  ListItem,
-  TaskItem,
-  Table,
-  Row,
-  Cell,
-  FileRefGroup,
-  ImageBlock,
-  NamedBlock,
-  RefDefinition,
-  SpoilerBlock,
-} from '../types/document/blocks.ts'
-import type {
-  Inline,
-  Emphasis,
-  Strong,
-  Highlight,
-  Link,
-  ImageInline,
-  Mark,
-  QuoteInline,
-  Spoiler,
-} from '../types/document/inline.ts'
+import type { Document, Page, Block, ListItemLike, Row } from '../types/document/blocks.ts'
+import type { Inline } from '../types/document/inline.ts'
 import type { Visitors } from './types.ts'
 import type { NodeMap } from '../types/document/node-map.ts'
 
@@ -45,39 +17,34 @@ function visitInlines(nodes: Inline[], v: V): void {
 
 /** Visit one inline node (exit-only: recurse into children, then call visitor). */
 function visitInline(node: Inline, v: V): Inline | undefined {
-  switch (node.type) {
-    case 'Emphasis': {
-      visitInlines((node as Emphasis).children, v)
-      return v.Emphasis?.(node as Emphasis) as Inline | undefined
-    }
-    case 'Strong': {
-      visitInlines((node as Strong).children, v)
-      return v.Strong?.(node as Strong) as Inline | undefined
-    }
-    case 'Highlight': {
-      visitInlines((node as Highlight).children, v)
-      return v.Highlight?.(node as Highlight) as Inline | undefined
-    }
-    case 'Link': {
-      visitInlines((node as Link).children, v)
-      return v.Link?.(node as Link) as Inline | undefined
-    }
-    case 'ImageInline': {
-      visitInlines((node as ImageInline).alt, v)
-      return v.ImageInline?.(node as ImageInline) as Inline | undefined
-    }
-    case 'Mark': {
-      visitInlines((node as Mark).children, v)
-      return v.Mark?.(node as Mark) as Inline | undefined
-    }
-    case 'QuoteInline': {
-      visitInlines((node as QuoteInline).children, v)
-      return v.QuoteInline?.(node as QuoteInline) as Inline | undefined
-    }
-    case 'Spoiler': {
-      visitInlines((node as Spoiler).children, v)
-      return v.Spoiler?.(node as Spoiler) as Inline | undefined
-    }
+  switch (node._type) {
+    case 'Emphasis':
+      visitInlines(node.children, v)
+      return v.Emphasis?.(node) as Inline | undefined
+    case 'Strong':
+      visitInlines(node.children, v)
+      return v.Strong?.(node) as Inline | undefined
+    case 'Highlight':
+      visitInlines(node.children, v)
+      return v.Highlight?.(node) as Inline | undefined
+    case 'Spoiler':
+      visitInlines(node.children, v)
+      return v.Spoiler?.(node) as Inline | undefined
+    case 'Link':
+      visitInlines(node.children, v)
+      return v.Link?.(node) as Inline | undefined
+    case 'QuoteInline':
+      visitInlines(node.children, v)
+      return v.QuoteInline?.(node) as Inline | undefined
+    case 'Mark':
+      visitInlines(node.children, v)
+      return v.Mark?.(node) as Inline | undefined
+    case 'ImageInline':
+      visitInlines(node.alt, v)
+      return v.ImageInline?.(node) as Inline | undefined
+    case 'EmbedImageInline':
+      visitInlines(node.alt, v)
+      return v.EmbedImageInline?.(node) as Inline | undefined
     case 'Text':
       return v.Text?.(node) as Inline | undefined
     case 'CodeInline':
@@ -99,128 +66,107 @@ function visitBlocks(nodes: Block[], v: V): void {
   }
 }
 
+/**
+ * §4.7.1: a container holds `Inline[]` when its body is one paragraph and
+ * `Block[]` otherwise; the two never mix, so the first child decides.
+ */
+function visitBody(children: Inline[] | Block[], v: V): void {
+  if (children.length > 0 && isInline(children[0]!)) visitInlines(children as Inline[], v)
+  else visitBlocks(children as Block[], v)
+}
+
+const INLINE_TYPES = new Set([
+  'Text',
+  'Emphasis',
+  'Strong',
+  'Highlight',
+  'Spoiler',
+  'Link',
+  'CodeInline',
+  'MathInline',
+  'QuoteInline',
+  'ImageInline',
+  'EmbedImageInline',
+  'Mark',
+  'LineBreak',
+  'Variable',
+])
+
+const isInline = (node: Inline | Block): node is Inline => INLINE_TYPES.has(node._type)
+
 /** Visit one block node (exit-only: recurse into children, then call visitor). */
 function visitBlock(node: Block, v: V): Block | undefined {
-  switch (node.type) {
-    case 'Section': {
-      visitInlines((node as Section).heading, v)
-      visitBlocks((node as Section).children, v)
-      return v.Section?.(node as Section) as Block | undefined
-    }
-    case 'Paragraph': {
-      visitInlines((node as Paragraph).children, v)
-      return v.Paragraph?.(node as Paragraph) as Block | undefined
-    }
-    case 'QuoteBlock': {
-      visitBlocks((node as QuoteBlock).children, v)
-      return v.QuoteBlock?.(node as QuoteBlock) as Block | undefined
-    }
-    case 'List': {
-      const list = node as List
-      for (let i = 0; i < list.children.length; i++) {
-        const item = list.children[i]!
-        visitListItem(item, v)
-      }
-      return v.List?.(list) as Block | undefined
-    }
-    case 'Table': {
-      const table = node as Table
-      for (const col of table.columns) {
+  switch (node._type) {
+    case 'Section':
+      visitInlines(node.heading, v)
+      visitBlocks(node.children, v)
+      return v.Section?.(node) as Block | undefined
+    case 'Paragraph':
+      visitInlines(node.children, v)
+      return v.Paragraph?.(node) as Block | undefined
+    case 'QuoteBlock':
+      visitBody(node.children, v)
+      visitInlines(node.caption, v)
+      return v.QuoteBlock?.(node) as Block | undefined
+    case 'NamedBlock':
+      visitBody(node.children, v)
+      visitInlines(node.caption, v)
+      return v.NamedBlock?.(node) as Block | undefined
+    case 'SpoilerBlock':
+      visitBody(node.children, v)
+      visitInlines(node.caption, v)
+      return v.SpoilerBlock?.(node) as Block | undefined
+    case 'List':
+      for (const item of node.children) visitListItem(item, v)
+      return v.List?.(node) as Block | undefined
+    case 'Table':
+      for (const col of node.columns) {
         const r = v.Column?.(col)
         if (r !== undefined) Object.assign(col, r)
       }
-      visitRows(table.rows, v)
-      return v.Table?.(table) as Block | undefined
-    }
-    case 'FileRefGroup': {
-      const grp = node as FileRefGroup
-      for (let i = 0; i < grp.children.length; i++) {
-        const child = grp.children[i]!
-        if (child.type === 'FileRef') {
-          const r = v.FileRef?.(child)
-          if (r !== undefined) grp.children[i] = r
-        } else {
-          visitInlines((child as ImageBlock).alt, v)
-          const r = v.ImageBlock?.(child as ImageBlock)
-          if (r !== undefined) grp.children[i] = r
-        }
+      visitRows(node.rows, v)
+      visitInlines(node.caption, v)
+      return v.Table?.(node) as Block | undefined
+    case 'FileGroup':
+      for (let i = 0; i < node.children.length; i++) {
+        const child = node.children[i]!
+        visitInlines(child.caption, v)
+        const r = v.FileBlock?.(child)
+        if (r !== undefined) node.children[i] = r
       }
-      return v.FileRefGroup?.(grp) as Block | undefined
-    }
-    case 'NamedBlock': {
-      visitBlocks((node as NamedBlock).children, v)
-      return v.NamedBlock?.(node as NamedBlock) as Block | undefined
-    }
-    case 'SpoilerBlock': {
-      visitBlocks((node as SpoilerBlock).children, v)
-      return v.SpoilerBlock?.(node as SpoilerBlock) as Block | undefined
-    }
-    case 'RefDefinition': {
-      visitInlines((node as RefDefinition).children, v)
-      return v.RefDefinition?.(node as RefDefinition) as Block | undefined
-    }
-    case 'ImageBlock': {
-      visitInlines((node as ImageBlock).alt, v)
-      return v.ImageBlock?.(node as ImageBlock) as Block | undefined
-    }
+      return v.FileGroup?.(node) as Block | undefined
+    case 'InjectBlock':
+      visitBlocks(node.children, v)
+      return v.InjectBlock?.(node) as Block | undefined
+    case 'RefDefinition':
+      visitInlines(node.children, v)
+      return v.RefDefinition?.(node) as Block | undefined
     case 'CodeBlock':
+      visitInlines(node.caption, v)
       return v.CodeBlock?.(node) as Block | undefined
-    case 'FileRef':
-      return v.FileRef?.(node) as Block | undefined
     case 'MathBlock':
+      visitInlines(node.caption, v)
       return v.MathBlock?.(node) as Block | undefined
-    case 'CommentBlock':
-      return v.CommentBlock?.(node) as Block | undefined
+    case 'EmbedBlock':
+      visitInlines(node.caption, v)
+      return v.EmbedBlock?.(node) as Block | undefined
   }
 }
 
-function visitListItem(item: List['children'][number], v: V): void {
-  const children = (item as ListItem | TaskItem).children
-  for (let i = 0; i < children.length; i++) {
-    const child = children[i]!
-    if (isBlock(child)) {
-      const r = visitBlock(child as Block, v)
-      if (r !== undefined) children[i] = r
-    } else {
-      const r = visitInline(child as Inline, v)
-      if (r !== undefined) children[i] = r
-    }
-  }
-  if (item.type === 'ListItem') {
-    v.ListItem?.(item as ListItem)
-  } else {
-    v.TaskItem?.(item as TaskItem)
-  }
+function visitListItem(item: ListItemLike, v: V): void {
+  visitBody(item.children, v)
+  if (item._type === 'ListItem') v.ListItem?.(item)
+  else v.TaskItem?.(item)
 }
 
 function visitRows(rows: Row[], v: V): void {
   for (const row of rows) {
     for (const cell of row.children) {
       visitInlines(cell.children, v)
-      v.Cell?.(cell as Cell)
+      v.Cell?.(cell)
     }
     v.Row?.(row)
   }
-}
-
-function isBlock(node: Block | Inline): boolean {
-  const blockTypes = new Set([
-    'Section',
-    'Paragraph',
-    'CodeBlock',
-    'QuoteBlock',
-    'List',
-    'Table',
-    'FileRef',
-    'ImageBlock',
-    'FileRefGroup',
-    'NamedBlock',
-    'RefDefinition',
-    'MathBlock',
-    'SpoilerBlock',
-    'CommentBlock',
-  ])
-  return blockTypes.has((node as { type: string }).type)
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

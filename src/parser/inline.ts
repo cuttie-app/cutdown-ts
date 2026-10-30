@@ -1,928 +1,721 @@
-import type {
-  Attribute,
-  Diagnostic,
-  Inline,
-  InlineParseResult,
-  Text,
-  Emphasis,
-  Strong,
-  Highlight,
-  CodeInline,
-  Link,
-  ImageInline,
-  Mark,
-  MathInline,
-  Variable,
-  QuoteInline,
-  Spoiler,
-  LinkKind,
-} from '../types/document'
-import { parseAttrBlock } from './attrs.ts'
-import { isIdChar } from './utils.ts'
+import type { Attribute, Diagnostic, Inline, Link, LinkKind, Text } from '../types/document'
+import { mergeAttrs, scanAttrGroup } from './attrs.ts'
+import { normalizePath, readLocator } from './locator.ts'
+import {
+  LIMITS,
+  diag,
+  hasCutdownExtension,
+  isBidiControl,
+  isControl,
+  isIdChar,
+  isIdName,
+  isIdValue,
+  isInlineSpecial,
+  scalarLength,
+  trimWsEnd,
+} from './utils.ts'
 
-// ─── Special characters per spec §4 ──────────────────────────────────────────
+/**
+ * How the trailing `{…}` groups of an inline context are handled:
+ *  - `block`   — returned for the block's scope chain (Rule B, §6.1.2); a group
+ *                glued to an inline still binds to that inline
+ *  - `heading` — returned whole: the last group is claimed by the Section
+ *  - `nested`  — span content, link text, alt, a sealed table cell: the only
+ *                slot is the last attr-bearing inline
+ *  - `caption` — literal text with CDN-0009 (§6.2)
+ */
+export type InlineMode = 'block' | 'heading' | 'nested' | 'caption'
 
-/** §5.10: maximum `Mark` nesting depth; deeper openers emit CDN-0031. */
-export const MAX_MARK_DEPTH = 8
-
-export const SPECIAL_CHARS = new Set([
-  '=',
-  '#',
-  '*',
-  '_',
-  '~',
-  '`',
-  '$',
-  '[',
-  ']',
-  '(',
-  ')',
-  '!',
-  '{',
-  '}',
-  ':',
-  '-',
-  '>',
-  '/',
-  '\\',
-  '|',
-  '"',
-  "'",
-  '^',
-])
-
-// ─── Public parse helpers ─────────────────────────────────────────────────────
-
-export interface InlineParseOptions {
-  /**
-   * §12.1: apply the block-line trailing-space rule — runs collapse to a single
-   * space, preserved before a soft break and dropped at the block boundary.
-   * Only paragraph-like content is scanned as block lines.
-   */
-  blockLines?: boolean
-  /**
-   * §5.10: current `Mark` nesting depth. Threaded through the recursive parse of
-   * `Mark` content so the depth cap can be enforced across nesting levels.
-   */
-  markDepth?: number
+export interface InlineResult {
+  nodes: Inline[]
+  /** Trailing scope-chain groups, left to right (block and heading modes) */
+  trailing: Attribute[][]
 }
 
-/** Parse inline content from a (possibly multi-line) string. */
-export function parseInlineText(text: string, options?: InlineParseOptions): InlineParseResult {
-  const scanner = new InlineScanner(text, options)
-  return scanner.scan()
+interface Ctx {
+  /** Inside link text: `[…](…)` is literal (§5.5) */
+  inLink: boolean
+  /** Inside `alt`: no link and no image (§5.9) */
+  inAlt: boolean
+  markDepth: number
 }
 
-/** Parse inline content from an array of lines (joined with \n internally). */
-export function parseInlineLines(lines: string[]): InlineParseResult {
-  if (lines.length === 0) return { nodes: [], trailingAttrGroups: [], diagnostics: [], comments: [] }
-  return parseInlineText(lines.join('\n'))
+interface Group {
+  group: true
+  attrs: Attribute[]
+  diagnostics: Diagnostic[]
+  raw: string
+  glued: boolean
 }
 
-/** Merge adjacent Text nodes. */
-export function mergeText(nodes: Inline[]): Inline[] {
-  const result: Inline[] = []
-  for (const node of nodes) {
-    const last = result[result.length - 1]
-    if (node.type === 'Text' && last?.type === 'Text') {
-      ;(last as Text).value += (node as Text).value
-    } else {
-      result.push(node)
+type Item = Inline | Group
+
+const SPAN_DELIMS: Record<string, 'Strong' | 'Emphasis' | 'Highlight' | 'Spoiler' | 'double' | 'single'> = {
+  '**': 'Strong',
+  __: 'Emphasis',
+  '~~': 'Highlight',
+  '^^': 'Spoiler',
+  '""': 'double',
+  "''": 'single',
+}
+
+const isGroup = (it: Item): it is Group => (it as Group).group === true
+const isText = (it: Item): it is Text => !isGroup(it) && it._type === 'Text'
+const isWsText = (it: Item): boolean => isText(it) && /^[ \t]*$/.test(it.value)
+
+/** An inline that carries `attributes` (§A.3): everything but Text and LineBreak. */
+export const isAttrBearing = (n: unknown): n is Inline & { attributes: Attribute[] } =>
+  typeof n === 'object' && n !== null && 'attributes' in n && (n as Inline)._type !== 'Text'
+
+const isSoftWs = (c: string | undefined) => c === ' ' || c === '\t' || c === '\n'
+
+/**
+ * Parse one inline context (§12.1.4). `src` holds the context's lines joined
+ * by `\n`, each a soft break that adds no character (§15.1); the base-column
+ * fold has already been applied.
+ */
+export function parseInline(src: string, mode: InlineMode, diagnostics: Diagnostic[], markDepth = 0): InlineResult {
+  const p = new InlineParser(src, diagnostics)
+  const { nodes, trailing } = p.parseRange(0, src.length, { inLink: false, inAlt: false, markDepth }, mode)
+  return { nodes, trailing }
+}
+
+/** §5.5 wiki link: the text a reader sees. */
+export function plainText(nodes: Inline[]): string {
+  let out = ''
+  for (const n of nodes) {
+    switch (n._type) {
+      case 'Text':
+      case 'CodeInline':
+        out += n.value
+        break
+      case 'MathInline':
+        out += n.formula
+        break
+      case 'Variable':
+        out += `{{${n.key}}}`
+        break
+      case 'ImageInline':
+      case 'EmbedImageInline':
+        out += plainText(n.alt)
+        break
+      case 'LineBreak':
+        break
+      default:
+        out += plainText(n.children)
     }
   }
-  return result
+  return out
 }
 
 /**
- * §5.4: Distribute trailing attr groups from link text onto the link's children.
- * Each group attaches to the last non-Text child (preceding inline element).
- * Groups with no eligible target are silently dropped.
+ * Rule B (§6.1.2): the last group claims the first slot, each earlier group the
+ * next one. An `Inline[]` slot is its last attr-bearing inline. Groups left
+ * without a slot are dropped with one CDN-0011.
  */
-function applyLinkTextAttrs(nodes: Inline[], groups: Attribute[][]): void {
-  for (const group of groups) {
-    if (group.length === 0) continue
-    for (let j = nodes.length - 1; j >= 0; j--) {
-      const n = nodes[j] as unknown as Record<string, unknown>
-      if (n != null && typeof n === 'object' && n.type !== 'Text') {
-        if (!n.attributes) n.attributes = group
-        break
-      }
+export type Slot = { attributes: Attribute[] } | Inline[]
+
+export function distribute(groups: Attribute[][], slots: Slot[], diagnostics: Diagnostic[]): void {
+  let orphan = false
+  for (let g = groups.length - 1, si = 0; g >= 0; g--, si++) {
+    const slot = slots[si]
+    const target = Array.isArray(slot) ? lastAttrBearing(slot) : slot
+    if (!target) {
+      orphan = true
+      continue
     }
+    target.attributes = mergeAttrs(target.attributes, groups[g]!)
   }
+  if (orphan) diagnostics.push(diag('CDN-0011'))
 }
 
-// ─── InlineScanner ────────────────────────────────────────────────────────────
+function lastAttrBearing(nodes: Inline[]): { attributes: Attribute[] } | null {
+  const last = nodes[nodes.length - 1]
+  return last && isAttrBearing(last) ? last : null
+}
 
-class InlineScanner {
-  readonly chars: string[]
-  private pos: number = 0
-  private nodes: Inline[] = []
-  private trailingAttrGroups: Attribute[][] = []
-  private trailingAttrGroupsNodeCount: number = 0
-  private comments: { lineOffset: number; text: string }[] = []
-  /** §2.2: a `##` cut ended the current line, so it owns the line's trailing spaces. */
-  private lineHasComment: boolean = false
-  private diagnostics: Diagnostic[] = []
+class InlineParser {
+  constructor(
+    readonly s: string,
+    readonly diagnostics: Diagnostic[]
+  ) {}
 
-  private readonly blockLines: boolean
-  private readonly markDepth: number
-
-  constructor(text: string, options?: InlineParseOptions) {
-    this.chars = [...text]
-    this.blockLines = options?.blockLines ?? false
-    this.markDepth = options?.markDepth ?? 0
+  /** End of the line holding `i`, bounded by `to`. */
+  private lineEnd(i: number, to: number): number {
+    const nl = this.s.indexOf('\n', i)
+    return nl < 0 || nl > to ? to : nl
   }
 
-  scan(): InlineParseResult {
-    while (this.pos < this.chars.length) {
-      this.step()
-    }
-    // §12.1: trailing spaces are dropped at a block boundary (end of input),
-    // unless a `##` cut already closed the line (§2.2 barrier).
-    if (this.blockLines && !this.lineHasComment) this.collapseTrailingSpaces(false)
-    const merged = mergeText(this.nodes)
-    // Only trim trailing space from last Text when there are trailing attr groups
-    // AND no ## comment was encountered (## acts as an end-of-line barrier)
-    if (this.trailingAttrGroups.length > 0 && merged.length > 0 && this.comments.length === 0) {
-      const last = merged[merged.length - 1] || { type: '' }
-      if (last.type === 'Text') {
-        ;(last as Text).value = (last as Text).value.trimEnd()
-        if ((last as Text).value === '') merged.pop()
-      }
-    }
-    return {
-      nodes: merged,
-      trailingAttrGroups: this.trailingAttrGroups,
-      diagnostics: this.diagnostics,
-      comments: this.comments,
-    }
-  }
-
-  private ch(offset = 0): string | undefined {
-    return this.chars[this.pos + offset]
-  }
-
-  private peek(s: string): boolean {
-    for (let i = 0; i < s.length; i++) {
-      if (this.chars[this.pos + i] !== s[i]) return false
-    }
-    return true
-  }
-
-  private pushText(s: string): void {
-    // §2.6: pure whitespace is transparent to trailing-attr resolution
-    if (this.trailingAttrGroups.length > 0 && s.trim() !== '') {
-      this.trailingAttrGroups = []
-      this.trailingAttrGroupsNodeCount = 0
-    }
-    this.nodes.push({ type: 'Text', value: s })
+  /** `[from, to)` with leading and trailing whitespace removed (§15.2). */
+  private trim(from: number, to: number): [number, number] {
+    while (from < to && isSoftWs(this.s[from])) from++
+    while (to > from && isSoftWs(this.s[to - 1])) to--
+    return [from, to]
   }
 
   /**
-   * §12.1: collapse a run of trailing spaces on a block line. `keepOne` preserves
-   * a single space (soft break); otherwise the run is dropped (block boundary).
+   * Pairings computed once per context, so no opener rescans the text it
+   * cannot close over — parsing stays linear (§12 guarantee 1, §20.2 clause 7).
    */
-  private collapseTrailingSpaces(keepOne: boolean): void {
-    let stripped = false
-    while (this.nodes.length > 0) {
-      const last = this.nodes[this.nodes.length - 1]
-      if (last?.type !== 'Text') break
-      const value = (last as Text).value
-      const trimmed = value.replace(/[ \t]+$/, '')
-      if (trimmed === value) break
-      stripped = true
-      if (trimmed === '') {
-        this.nodes.pop()
-        if (this.trailingAttrGroupsNodeCount > this.nodes.length) {
-          this.trailingAttrGroupsNodeCount = this.nodes.length
+  private tables?: { tick: Int32Array; dollar: Int32Array; bracket: Int32Array; paren: Int32Array; mark: Int32Array }
+
+  private get t() {
+    return (this.tables ??= this.index())
+  }
+
+  private index() {
+    const s = this.s
+    const n = s.length
+    // Next `` `` `` / `$$` pair at or after each index; `` \` `` escapes a backtick (§13.3).
+    const tick = new Int32Array(n + 1).fill(-1)
+    const dollar = new Int32Array(n + 1).fill(-1)
+    for (let k = n - 2; k >= 0; k--) {
+      tick[k] = s[k] === '`' && s[k + 1] === '`' && s[k - 1] !== '\\' ? k : tick[k + 1]!
+      dollar[k] = s[k] === '$' && s[k + 1] === '$' ? k : dollar[k + 1]!
+    }
+    this.tables = {
+      tick,
+      dollar,
+      bracket: new Int32Array(n).fill(-1),
+      paren: new Int32Array(n).fill(-1),
+      mark: new Int32Array(n).fill(-1),
+    }
+    const { bracket, paren, mark } = this.tables
+    const brackets: number[] = []
+    const marks: number[] = []
+    for (let k = 0; k < n; ) {
+      const skip = this.skipProtected(k, n)
+      if (skip >= 0) {
+        k = skip
+        continue
+      }
+      const c = s[k]
+      if (c === '[') brackets.push(k)
+      else if (c === ']') {
+        const o = brackets.pop()
+        if (o !== undefined) bracket[o] = k
+      } else if (c === ':' && s[k + 1] === ':') {
+        // §5.10: `::` + ID_NAME + separator or `::` opens; any other `::` closes.
+        let e = k + 2
+        while (e < n && isIdChar(s[e])) e++
+        if (e > k + 2 && (e >= n || isSoftWs(s[e]) || (s[e] === ':' && s[e + 1] === ':'))) {
+          marks.push(k)
+          k = e
+          continue
         }
+        const o = marks.pop()
+        if (o !== undefined) mark[o] = k
+        k += 2
         continue
       }
-      ;(last as Text).value = trimmed
-      break
+      k++
     }
-    if (stripped && keepOne) this.nodes.push({ type: 'Text', value: ' ' })
-  }
-
-  private pushNode(node: Inline): void {
-    if (this.trailingAttrGroups.length > 0) {
-      this.trailingAttrGroups = []
-      this.trailingAttrGroupsNodeCount = 0
-    }
-    this.nodes.push(node)
-  }
-
-  private step(): void {
-    const c = this.ch()
-    if (c === undefined) return
-
-    if (c === '\\') {
-      const next = this.ch(1)
-      if (next === '\n') {
-        this.pos += 2
-        if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
-        this.nodes.push({ type: 'LineBreak' })
-        return
-      }
-      if (next !== undefined) {
-        const isSpecial = SPECIAL_CHARS.has(next)
-        this.pos += 2
-        this.pushText(isSpecial ? next : '\\' + next)
-        return
-      }
-      this.pos++
-      this.pushText('\\')
-      return
-    }
-
-    if (c === '\n') {
-      this.pos++
-      // §12.1: trailing spaces collapse to a single space, which is preserved
-      // before a soft break as an explicit word-boundary separator.
-      if (this.blockLines) this.collapseTrailingSpaces(true)
-      this.lineHasComment = false
-      return
-    }
-
-    if (c === '`' && this.ch(1) === '`') {
-      if (this.tryCodeInline()) return
-    }
-
-    if (c === '$' && this.ch(1) === '$') {
-      if (this.tryLiteral2('$$')) return
-    }
-
-    if (c === '#' && this.ch(1) === '#') {
-      this.emitCommentInline()
-      return
-    }
-
-    if (c === '*' && this.ch(1) === '*') {
-      if (this.tryDelimited('**', 'Strong')) return
-    }
-
-    if (c === '_' && this.ch(1) === '_') {
-      if (this.tryDelimited('__', 'Emphasis')) return
-    }
-
-    if (c === '~' && this.ch(1) === '~') {
-      if (this.tryDelimited('~~', 'Highlight')) return
-    }
-
-    if (c === '^' && this.ch(1) === '^') {
-      if (this.tryDelimited('^^', 'Spoiler')) return
-    }
-
-    if (c === '"' && this.ch(1) === '"') {
-      if (this.tryDelimited('""', 'QuoteDouble')) return
-    }
-
-    if (c === "'" && this.ch(1) === "'") {
-      if (this.tryDelimited("''", 'QuoteSingle')) return
-    }
-
-    if (c === '!' && this.ch(1) === '[') {
-      if (this.tryImageInline()) return
-    }
-
-    if (c === '[') {
-      if (this.tryLink()) return
-    }
-
-    if (c === '{' && this.ch(1) === '{') {
-      if (this.tryVariable()) return
-    }
-
-    if (c === ':' && this.ch(1) === ':') {
-      if (this.tryMark()) return
-    }
-
-    if (c === '{') {
-      if (this.tryInlineAttrs()) return
-    }
-
-    this.pos++
-    this.pushText(c)
-  }
-
-  private emitCommentInline(): void {
-    // Count newlines before current pos to get line offset within the scanned text
-    let lineOffset = 0
-    for (let i = 0; i < this.pos; i++) {
-      if (this.chars[i] === '\n') lineOffset++
-    }
-
-    // If trailing attr groups are active, pop any transparent whitespace nodes
-    // that were pushed between the last attr group and the ## marker
-    if (this.trailingAttrGroups.length > 0) {
-      while (this.nodes.length > this.trailingAttrGroupsNodeCount) {
-        const last = this.nodes[this.nodes.length - 1]
-        if (last?.type === 'Text' && (last as Text).value.trim() === '') {
-          this.nodes.pop()
-        } else break
+    // §8.1 targets count parentheses with escapes only.
+    const parens: number[] = []
+    for (let k = 0; k < n; k++) {
+      const c = s[k]
+      if (c === '\\') k++
+      else if (c === '(') parens.push(k)
+      else if (c === ')') {
+        const o = parens.pop()
+        if (o !== undefined) paren[o] = k
       }
     }
-
-    // §12.1: spaces before the `##` cut are the line's trailing spaces —
-    // collapse them to the single word-boundary space.
-    this.collapseTrailingSpaces(true)
-    this.lineHasComment = true
-
-    this.pos += 2 // skip ##
-    let text = ''
-    while (this.pos < this.chars.length && this.chars[this.pos] !== '\n') {
-      text += this.chars[this.pos++]
-    }
-    this.comments.push({ lineOffset, text: text.trimStart() })
-  }
-
-  private tryCodeInline(): boolean {
-    const start = this.pos
-    this.pos += 2
-    let content = ''
-    let closed = false
-    while (this.pos < this.chars.length) {
-      if (this.ch() === '\\' && this.ch(1) === '`') {
-        content += '`'
-        this.pos += 2
-        continue
-      }
-      if (this.ch() === '`' && this.ch(1) === '`') {
-        this.pos += 2
-        closed = true
-        break
-      }
-      content += this.chars[this.pos] === '\n' ? '' : this.chars[this.pos]
-      this.pos++
-    }
-    if (!closed) {
-      this.pos = start + 1
-      this.pushText('`')
-      return true
-    }
-    let attrs: Attribute[] = []
-    if (this.ch() === '{' && this.ch(1) !== '{') {
-      const r = this.readAttrBlock()
-      if (r && r.attrs.length > 0) attrs = r.attrs
-    }
-    const node: CodeInline = { type: 'CodeInline', value: content, attributes: attrs }
-    this.pushNode(node)
-    return true
-  }
-
-  private tryLiteral2(delim: string): boolean {
-    const start = this.pos
-    this.pos += 2
-    let content = ''
-    let closed = false
-    while (this.pos < this.chars.length) {
-      if (this.peek(delim)) {
-        this.pos += 2
-        closed = true
-        break
-      }
-      content += this.chars[this.pos++]
-    }
-    if (!closed) {
-      this.pos = start + 1
-      this.pushText(delim[0] || '')
-      return true
-    }
-    const node: MathInline = { type: 'MathInline', formula: content, attributes: [] }
-    this.pushNode(node)
-    return true
-  }
-
-  private tryDelimited(delim: string, nodeType: string): boolean {
-    const start = this.pos
-    this.pos += delim.length
-    const innerStart = this.pos
-
-    let closedAt = -1
-    while (this.pos < this.chars.length) {
-      if (this.peek(delim)) {
-        closedAt = this.pos
-        this.pos += delim.length
-        break
-      }
-      this.pos++
-    }
-
-    if (closedAt === -1) {
-      this.pos = start + delim.length
-      if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
-      this.nodes.push({ type: 'Text', value: delim })
-      return true
-    }
-
-    const rawInner = this.chars.slice(innerStart, closedAt).join('')
-    const innerResult = parseInlineText(rawInner.trim())
-    this.diagnostics.push(...innerResult.diagnostics)
-    const children = innerResult.nodes
-
-    // CDN-0014: warn on crossed inline boundaries
-    const otherDelims = ['**', '__', '~~', '^^', '""', "''"].filter((d) => d !== delim)
-    for (const cd of otherDelims) {
-      let count = 0
-      let ci = 0
-      while (ci <= rawInner.length - cd.length) {
-        if (rawInner.slice(ci, ci + cd.length) === cd) {
-          count++
-          ci += cd.length
-        } else ci++
-      }
-      if (count % 2 !== 0 && this.chars.slice(this.pos).join('').includes(cd)) {
-        this.diagnostics.push({
-          code: 'CDN-0014',
-          level: 'warning',
-          message: `Crossed inline boundaries: "${delim}" closes while "${cd}" is still open`,
-        })
-      }
-    }
-    const openBrackets = (rawInner.match(/\[/g) ?? []).length
-    const closeBrackets = (rawInner.match(/]/g) ?? []).length
-    if (openBrackets > closeBrackets && this.chars.slice(this.pos).join('').includes(']')) {
-      this.diagnostics.push({
-        code: 'CDN-0014',
-        level: 'warning',
-        message: `Crossed inline boundaries: "${delim}" closes while "[" is still open`,
-      })
-    }
-
-    let attrs: Attribute[] | undefined
-    if (this.ch() === '{' && this.ch(1) !== '{') {
-      const r = this.readAttrBlock()
-      if (r && r.attrs.length > 0) attrs = r.attrs
-    }
-
-    let node: Inline
-    switch (nodeType) {
-      case 'Emphasis':
-        node = { type: 'Emphasis', children, ...(attrs ? { attributes: attrs } : {}) } as Emphasis
-        break
-      case 'Strong':
-        node = { type: 'Strong', children, ...(attrs ? { attributes: attrs } : {}) } as Strong
-        break
-      case 'Highlight':
-        node = { type: 'Highlight', children, ...(attrs ? { attributes: attrs } : {}) } as Highlight
-        break
-      case 'Spoiler':
-        node = { type: 'Spoiler', children, ...(attrs ? { attributes: attrs } : {}) } as Spoiler
-        break
-      case 'QuoteDouble':
-        node = { type: 'QuoteInline', kind: 'double', children, ...(attrs ? { attributes: attrs } : {}) } as QuoteInline
-        break
-      default:
-        node = { type: 'QuoteInline', kind: 'single', children, ...(attrs ? { attributes: attrs } : {}) } as QuoteInline
-    }
-
-    this.pushNode(node)
-    return true
+    return this.tables
   }
 
   /**
-   * §9.4.1 Class 2 (asymmetric opener) degradation: the entire source from the
-   * opener to end of line (or to an `##`-cut) is one verbatim Text run. Closed
-   * constructs inside the dead slice are lost.
+   * Index of the closing `` `` `` / `$$` of a span opened before `from`, or -1.
+   * Inside CodeInline, `` \` `` is an escape; MathInline has none (§13.3).
    */
-  private emitVerbatimSlice(start: number): void {
-    let end = start
-    while (end < this.chars.length) {
-      const c = this.chars[end]
-      if (c === '\n') break
-      if (c === '\\') {
-        end += 2
-        continue
-      }
-      if (c === '#' && this.chars[end + 1] === '#') break
-      end++
-    }
-    if (end > this.chars.length) end = this.chars.length
-    this.pos = end
-    this.pushText(this.chars.slice(start, end).join(''))
+  private literalClose(from: number, to: number, c: '`' | '$'): number {
+    const k = (c === '`' ? this.t.tick : this.t.dollar)[from] ?? -1
+    return k >= 0 && k + 1 < to ? k : -1
   }
 
-  private tryImageInline(): boolean {
-    const start = this.pos
-    this.pos += 2
-
-    const altChars = this.readBracketContent()
-    if (altChars === null || this.ch() !== '(') {
-      this.emitVerbatimSlice(start)
-      return true
+  /** Next index at or after `from` where `pat` (one or two characters) occurs, or -1. */
+  private nextOf(pat: string, from: number): number {
+    let table = this.occurrences.get(pat)
+    if (!table) {
+      const s = this.s
+      table = new Int32Array(s.length + 1).fill(-1)
+      for (let k = s.length - 1; k >= 0; k--) table[k] = s.startsWith(pat, k) ? k : table[k + 1]!
+      this.occurrences.set(pat, table)
     }
-    this.pos++
-    const src = this.readUntil(')')
-    if (src === null) {
-      this.emitVerbatimSlice(start)
-      return true
-    }
-    this.pos++
-
-    let attrs: Attribute[] | undefined
-    if (this.ch() === '{' && this.ch(1) !== '{') {
-      const r = this.readAttrBlock()
-      if (r && r.attrs.length > 0) attrs = r.attrs
-    }
-
-    const altResult = parseInlineText(altChars)
-    this.diagnostics.push(...altResult.diagnostics)
-    const node: ImageInline = { type: 'ImageInline', alt: altResult.nodes, src, attributes: attrs || [] }
-    this.pushNode(node)
-    return true
+    return table[from] ?? -1
   }
 
-  private tryLink(): boolean {
-    const start = this.pos
-    this.pos++
-
-    const textChars = this.readBracketContent()
-    if (textChars === null) {
-      this.emitVerbatimSlice(start)
-      return true
-    }
-
-    if (this.ch() === '(') {
-      this.pos++
-      const href = this.readUntil(')')
-      if (href === null) {
-        this.pos = start + 1
-        this.pushText('[')
-        return true
-      }
-      this.pos++
-
-      let attrs: Attribute[] | undefined
-      if (this.ch() === '{' && this.ch(1) !== '{') {
-        const r = this.readAttrBlock()
-        if (r && r.attrs.length > 0) attrs = r.attrs
-      }
-
-      const textResult = parseInlineText(textChars)
-      this.diagnostics.push(...textResult.diagnostics)
-      applyLinkTextAttrs(textResult.nodes, textResult.trailingAttrGroups)
-      const node: Link = {
-        type: 'Link',
-        kind: 'external',
-        href,
-        target: '',
-        children: textResult.nodes,
-        attributes: attrs || [],
-      }
-      this.pushNode(node)
-      return true
-    }
-
-    if (this.ch() === '[') {
-      this.pos++
-      const target = this.readUntil(']')
-      if (target === null) {
-        this.pos = start + 1
-        this.pushText('[')
-        return true
-      }
-      this.pos++
-
-      let kind: LinkKind = 'page'
-      let resolvedTarget = target
-      if (target.startsWith('#')) {
-        kind = 'tag'
-        resolvedTarget = target.slice(1)
-      } else if (target.startsWith('^')) {
-        kind = 'ref'
-        resolvedTarget = target.slice(1)
-      } else if (target.startsWith('@')) {
-        kind = 'cite'
-        resolvedTarget = target.slice(1)
-      }
-
-      let attrs: Attribute[] | undefined
-      if (this.ch() === '{' && this.ch(1) !== '{') {
-        const r = this.readAttrBlock()
-        if (r && r.attrs.length > 0) attrs = r.attrs
-      }
-
-      const textResult = parseInlineText(textChars)
-      this.diagnostics.push(...textResult.diagnostics)
-      applyLinkTextAttrs(textResult.nodes, textResult.trailingAttrGroups)
-      const node: Link = {
-        type: 'Link',
-        kind,
-        href: '',
-        target: resolvedTarget,
-        children: textResult.nodes,
-        attributes: attrs || [],
-      }
-      this.pushNode(node)
-      return true
-    }
-
-    this.pos = start + 1
-    this.pushText('[')
-    return true
-  }
-
-  private tryVariable(): boolean {
-    const start = this.pos
-    this.pos += 2
-    let key = ''
-    let closed = false
-    while (this.pos < this.chars.length) {
-      if (this.ch() === '}' && this.ch(1) === '}') {
-        this.pos += 2
-        closed = true
-        break
-      }
-      key += this.chars[this.pos++]
-    }
-    const trimmedKey = key.trim()
-    if (!closed) {
-      // Class 2 opener with no closer: verbatim slice to EOL / ##-cut
-      this.emitVerbatimSlice(start)
-      return true
-    }
-    if (trimmedKey === '' || !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
-      const raw = this.chars.slice(start, this.pos).join('')
-      if (this.trailingAttrGroups.length > 0) this.trailingAttrGroups = []
-      // Emit CDN-0015 only if the key has non-ID_LITERAL characters (not for empty key)
-      if (trimmedKey !== '' && !/^[a-zA-Z0-9._-]+$/.test(trimmedKey)) {
-        this.diagnostics.push({ code: 'CDN-0015', level: 'warning' })
-      }
-      this.nodes.push({ type: 'Text', value: raw })
-      return true
-    }
-    const node: Variable = { type: 'Variable', key: trimmedKey, attributes: [] }
-    this.pushNode(node)
-    return true
-  }
+  private readonly occurrences = new Map<string, Int32Array>()
 
   /**
-   * §5.10 `Mark`: `::name <content>::` or `::name::`.
-   *
-   * Unlike every other inline construct, the opener (`::name` + space) is
-   * textually distinct from the closer (bare `::`), so content is matched by
-   * COUNTING nested openers rather than by taking the first closer (§9.4.1,
-   * Class 3). That is what makes same-type — even same-name — nesting legal.
+   * Skip an escape or a closed CodeInline/MathInline span at `j` — both rank
+   * above every delimiter they could contain (§14). Returns the next index to
+   * scan, or -1 when nothing is skipped.
    */
-  private tryMark(): boolean {
-    const start = this.pos
-    this.pos += 2
-    const nameStart = this.pos
-    while (this.pos < this.chars.length && isIdChar(this.chars[this.pos] || '')) this.pos++
-    // The name is a maximal ID_LITERAL run, lexed before any delimiter matching.
-    // `_` is an ID_LITERAL char, so `::a__b__::` is a Mark named `a__b__` and no
-    // Emphasis forms; `*` is not, so `::a**b**::` fails the opener test below.
-    const name = this.chars.slice(nameStart, this.pos).join('')
-    if (name === '') {
-      // `::` with no valid name is literal. Emit one colon and rescan.
-      this.pos = start + 1
-      this.pushText(':')
-      return true
-    }
-
-    const afterName = this.pos
-    const isEmptyForm = this.ch() === ':' && this.ch(1) === ':'
-    const isContainer = this.ch() === ' '
-
-    // Name followed by neither a space nor `::` is not a Mark at all.
-    if (!isEmptyForm && !isContainer) return this.degradeMarkOpener(afterName, name)
-
-    if (this.markDepth + 1 > MAX_MARK_DEPTH) {
-      this.diagnostics.push({
-        code: 'CDN-0031',
-        level: 'warning',
-        message: `Mark nesting depth ${this.markDepth + 1} exceeds the maximum of ${MAX_MARK_DEPTH}`,
-      })
-      return this.degradeMarkOpener(afterName, name)
-    }
-
-    let children: Inline[] = []
-    if (isEmptyForm) {
-      this.pos += 2
-    } else {
-      // The single space after the name is the delimiter, not content.
-      const contentStart = afterName + 1
-      const closedAt = this.findMarkCloser(contentStart)
-      // Unclosed opener degrades per Class 1: the opener alone becomes Text.
-      if (closedAt === -1) return this.degradeMarkOpener(afterName, name)
-      const rawInner = this.chars.slice(contentStart, closedAt).join('')
-      const innerResult = parseInlineText(rawInner.trim(), { markDepth: this.markDepth + 1 })
-      this.diagnostics.push(...innerResult.diagnostics)
-      children = innerResult.nodes
-      this.pos = closedAt + 2
-    }
-
-    let attrs: Attribute[] | undefined
-    if (this.ch() === '{' && this.ch(1) !== '{') {
-      const r = this.readAttrBlock()
-      if (r && r.attrs.length > 0) attrs = r.attrs
-    }
-
-    const node: Mark = { type: 'Mark', name, children, attributes: attrs ?? [] }
-    this.pushNode(node)
-    return true
-  }
-
-  /** §9.4.1 Class 1: emit `::name` as literal Text and resume after it. */
-  private degradeMarkOpener(afterName: number, name: string): boolean {
-    this.pos = afterName
-    this.pushText(`::${name}`)
-    return true
-  }
-
-  /**
-   * Scan from `from` for the `::` that closes the currently-open Mark, counting
-   * nested openers. Returns the index of the closing `::`, or -1 if unclosed.
-   *
-   * A `::` is a nested OPENER when followed by `ID_LITERAL+` and then a space or
-   * `::`; otherwise it is a CLOSER. Escaped characters are skipped so `\::`
-   * cannot close a Mark.
-   */
-  private findMarkCloser(from: number): number {
-    let depth = 1
-    let i = from
-    while (i < this.chars.length) {
-      if (this.chars[i] === '\\') {
-        i += 2
-        continue
-      }
-      if (this.chars[i] !== ':' || this.chars[i + 1] !== ':') {
-        i++
-        continue
-      }
-      let j = i + 2
-      while (j < this.chars.length && isIdChar(this.chars[j] || '')) j++
-      const nestedName = j - (i + 2)
-      const follows = this.chars[j]
-      const opensNested = nestedName > 0 && (follows === ' ' || (follows === ':' && this.chars[j + 1] === ':'))
-      if (opensNested) {
-        depth++
-        // Resume at the character after the name: for the `::name::` form that is
-        // the inner closer, which the next iteration counts back down.
-        i = j
-        continue
-      }
-      depth--
-      if (depth === 0) return i
-      i += 2
+  private skipProtected(j: number, to: number): number {
+    const s = this.s
+    if (s[j] === '\\') return j + 2
+    if ((s[j] === '`' || s[j] === '$') && s[j + 1] === s[j] && j + 1 < to) {
+      const close = this.literalClose(j + 2, to, s[j] as '`' | '$')
+      return close >= 0 ? close + 2 : j + 2
     }
     return -1
   }
 
-  private tryInlineAttrs(): boolean {
-    const savedPos = this.pos
-    const r = this.readAttrBlock()
-    if (!r) {
-      // `{` with no matching `}` is a Class 2 opener: verbatim slice to EOL / ##-cut
-      this.emitVerbatimSlice(savedPos)
-      return true
-    }
-
-    if (!r.valid) {
-      // §9.4.1 literal-span idiom: a closed { } whose content violates the attribute
-      // grammar is one verbatim Text run (braces included), never inline-parsed.
-      this.pushText(r.raw)
-      return true
-    }
-
-    const { attrs, diagnostics } = r
-
-    if (attrs.length === 0) {
-      this.diagnostics.push(...diagnostics)
-      this.trailingAttrGroups.push([])
-      this.trailingAttrGroupsNodeCount = this.nodes.length
-      return true
-    }
-
-    const lastNonText = this.findLastNonTextNode()
-    if (lastNonText === null) {
-      // §6.3: no eligible slot. If non-attr/non-comment content follows, orphan → literal.
-      if (this.hasNonAttrContentAfter()) {
-        this.pos = savedPos
-        return false
-      }
-      this.diagnostics.push(...diagnostics)
-      this.trailingAttrGroups.push(attrs)
-      this.trailingAttrGroupsNodeCount = this.nodes.length
-      // Trimming of preceding whitespace is deferred to scan() (skipped if ## present)
-      return true
-    }
-
-    // Middle-of-inline attachment (§10.9): when non-attr content follows, {attrs}
-    // attaches directly to the preceding inline element (e.g. ::span {#id} text).
-    // When only more {…} blocks or nothing follows, it's a trailing scope-chain group.
-    if (
-      !('attributes' in lastNonText && (lastNonText as { attributes?: Attribute[] }).attributes) &&
-      this.hasNonAttrContentAfter()
-    ) {
-      this.diagnostics.push(...diagnostics)
-      ;(lastNonText as { attributes?: Attribute[] }).attributes = attrs
-      this.trimTrailingTextWhitespace()
-    } else {
-      this.diagnostics.push(...diagnostics)
-      this.trailingAttrGroups.push(attrs)
-      this.trailingAttrGroupsNodeCount = this.nodes.length
-      // Trimming of preceding whitespace is deferred to scan() (skipped if ## present)
-    }
-    return true
+  /**
+   * The closer of a span opened before `from`, in source order; -1 if none.
+   *
+   * A complete link or image is its own inline context, so a closer after it
+   * is preferred to one inside it. Only when none follows does the first
+   * closer win, crossing the link (§14 row 9, CDN-0014).
+   */
+  private findDelim(delim: string, from: number, to: number, ctx: Ctx): number {
+    const outside = this.scanDelim(delim, from, to, ctx)
+    return outside >= 0 ? outside : this.scanDelim(delim, from, to, null)
   }
 
-  private trimTrailingTextWhitespace(): void {
-    if (this.nodes.length === 0) return
-    const last = this.nodes[this.nodes.length - 1]
-    if (last && last.type === 'Text') {
-      ;(last as Text).value = (last as Text).value.trimEnd()
-      if ((last as Text).value === '') this.nodes.pop()
+  private scanDelim(delim: string, from: number, to: number, skipLinks: Ctx | null): number {
+    const s = this.s
+    let j = from
+    while (j + 1 < to) {
+      if (s[j] === delim[0] && s[j + 1] === delim[1]) return j
+      if (skipLinks) {
+        const end = this.completeLink(j, to, skipLinks)
+        if (end >= 0) {
+          j = end
+          continue
+        }
+      }
+      const k = this.skipProtected(j, to)
+      j = k >= 0 ? k : j + 1
     }
+    return -1
+  }
+
+  /** Index after a complete `[…](…)` or `![…](…)` starting at `j`, or -1. */
+  private completeLink(j: number, to: number, ctx: Ctx): number {
+    const s = this.s
+    const image = s[j] === '!' && s[j + 1] === '['
+    if (image ? ctx.inAlt : s[j] !== '[' || ctx.inLink || ctx.inAlt) return -1
+    const close = this.findBracketClose(image ? j + 2 : j + 1, to)
+    if (close < 0 || s[close + 1] !== '(' || close + 1 >= to) return -1
+    const end = this.findParenClose(close + 2, to)
+    return end < 0 ? -1 : end + 1
+  }
+
+  /** The `]` matching the `[` before `from`: brackets counted, escapes not. */
+  private findBracketClose(from: number, to: number): number {
+    const k = this.t.bracket[from - 1] ?? -1
+    return k >= 0 && k < to ? k : -1
+  }
+
+  /** §8.1 the first unbalanced `)` after `from`; parentheses nest, escapes do not count. */
+  private findParenClose(from: number, to: number): number {
+    const k = this.t.paren[from - 1] ?? -1
+    return k >= 0 && k < to ? k : -1
   }
 
   /**
-   * Returns true if there is non-attr, non-whitespace content after the current position.
-   * A bare `{…}` block does NOT count as "real content" — only text, delimiters, etc. do.
+   * §5.10 Class 3: the `::` closing the Mark opened at `open`, found by
+   * counting nested openers; -1 if it never closes before `to`.
    */
-  private hasNonAttrContentAfter(): boolean {
-    let i = this.pos
-    while (i < this.chars.length) {
-      const c = this.chars[i]
-      if (c === ' ' || c === '\n') {
+  private findMarkClose(open: number, to: number): number {
+    const k = this.t.mark[open] ?? -1
+    return k >= 0 && k + 1 < to ? k : -1
+  }
+
+  parseRange(from: number, to: number, ctx: Ctx, mode: InlineMode): InlineResult & { degraded: string[] } {
+    const s = this.s
+    const items: Item[] = []
+    const degraded: string[] = []
+    let text = ''
+    /** Index right after the last inline node, for `{…}` glue */
+    let nodeEnd = -1
+
+    const flush = () => {
+      if (text !== '') items.push({ _type: 'Text', value: text })
+      text = ''
+    }
+    const push = (node: Inline, end: number) => {
+      flush()
+      items.push(node)
+      nodeEnd = end
+    }
+    const slice = (start: number) => {
+      const end = this.lineEnd(start, to)
+      text += s.slice(start, end)
+      return end
+    }
+
+    let i = from
+    while (i < to) {
+      const c = s[i]!
+      const n = i + 1 < to ? s[i + 1] : undefined
+
+      if (c === '\n') {
         i++
         continue
       }
-      // Another {…} attr block is not "real" content
-      if (c === '{' && this.chars[i + 1] !== '{') return false
-      // §2.6: `##` is transparent to attr resolution — skip to EOL
-      if (c === '#' && this.chars[i + 1] === '#') {
-        i += 2
-        while (i < this.chars.length && this.chars[i] !== '\n') i++
+
+      if (c === '\\') {
+        if (n === '\n') {
+          push({ _type: 'LineBreak' }, i + 2)
+          nodeEnd = -1
+          i += 2
+        } else if (isInlineSpecial(n)) {
+          text += n
+          i += 2
+        } else {
+          text += '\\'
+          i++
+        }
         continue
       }
-      return true
+
+      // ── CodeInline / MathInline (§5.6, §5.7) ──────────────────────────────
+      if ((c === '`' || c === '$') && n === c) {
+        const close = this.literalClose(i + 2, to, c)
+        if (close < 0) {
+          text += c + c
+          i += 2
+          continue
+        }
+        let body = s.slice(i + 2, close).replace(/\n/g, '')
+        if (c === '`') {
+          body = body.replace(/\\`/g, '`')
+          push({ _type: 'CodeInline', value: body, attributes: [] }, close + 2)
+        } else push({ _type: 'MathInline', formula: body, attributes: [] }, close + 2)
+        i = close + 2
+        continue
+      }
+
+      // ── Class 1 spans (§5.2–§5.4, §5.8, §5.12) ────────────────────────────
+      const pair = c + (n ?? '')
+      const spanKind = SPAN_DELIMS[pair]
+      if (spanKind) {
+        const close = this.findDelim(pair, i + 2, to, ctx)
+        if (close < 0) {
+          text += pair
+          degraded.push(pair)
+          i += 2
+          continue
+        }
+        const [a, b] = this.trim(i + 2, close)
+        const inner = this.parseRange(a, b, ctx, 'nested')
+        this.crossCheck(inner.degraded, pair, close + 2)
+        const children = inner.nodes
+        const node: Inline =
+          spanKind === 'double' || spanKind === 'single'
+            ? { _type: 'QuoteInline', kind: spanKind, children, attributes: [] }
+            : { _type: spanKind, children, attributes: [] }
+        push(node, close + 2)
+        i = close + 2
+        continue
+      }
+
+      // ── Links and images (§5.5, §5.9) ─────────────────────────────────────
+      const isImage = c === '!' && n === '['
+      if ((isImage && !ctx.inAlt) || (c === '[' && !ctx.inLink && !ctx.inAlt)) {
+        const open = isImage ? i + 2 : i + 1
+        const close = this.findBracketClose(open, to)
+        if (close < 0) {
+          i = slice(i)
+          degraded.push('[')
+          continue
+        }
+        if (s[close + 1] === '[' && close + 1 < to) {
+          // §5.5 unsupported form `[text][target]`
+          const end = this.findBracketClose(close + 2, this.lineEnd(close + 2, to))
+          if (end >= 0) {
+            text += s.slice(i, end + 1).replace(/\n/g, '')
+            this.diagnostics.push(diag('CDN-0036'))
+            i = end + 1
+            continue
+          }
+        }
+        if (s[close + 1] !== '(' || close + 1 >= to) {
+          i = slice(i)
+          degraded.push('[')
+          continue
+        }
+        const targetEnd = this.findParenClose(close + 2, to)
+        if (targetEnd < 0) {
+          i = slice(i)
+          degraded.push('[')
+          continue
+        }
+        const [a, b] = this.trim(open, close)
+        const inner = this.parseRange(
+          a,
+          b,
+          { inLink: ctx.inLink || !isImage, inAlt: ctx.inAlt || isImage, markDepth: ctx.markDepth },
+          'nested'
+        )
+        if (!isImage) this.crossCheck(inner.degraded, '[', targetEnd + 1)
+        const written = s.slice(close + 2, targetEnd)
+        push(isImage ? this.image(inner.nodes, written) : this.link(inner.nodes, written), targetEnd + 1)
+        i = targetEnd + 1
+        continue
+      }
+
+      // ── Mark (§5.10) ──────────────────────────────────────────────────────
+      if (c === ':' && n === ':') {
+        let j = i + 2
+        while (j < to && isIdChar(s[j])) j++
+        const name = s.slice(i + 2, j)
+        if (name === '') {
+          text += '::'
+          i += 2
+          continue
+        }
+        const empty = s[j] === ':' && s[j + 1] === ':' && j + 1 < to
+        const container = j >= to || isSoftWs(s[j])
+        if (!empty && !container) {
+          text += '::' + name
+          i = j
+          continue
+        }
+        if (ctx.markDepth + 1 > LIMITS.markDepth) {
+          this.diagnostics.push(diag('CDN-0031'))
+          text += '::' + name
+          i = j
+          continue
+        }
+        if (empty) {
+          push({ _type: 'Mark', name, children: [], attributes: [] }, j + 2)
+          i = j + 2
+          continue
+        }
+        const contentStart = j < to ? j + 1 : j
+        const close = this.findMarkClose(i, to)
+        if (close < 0) {
+          text += '::' + name
+          i = j
+          continue
+        }
+        const [a, b] = this.trim(contentStart, close)
+        const inner = this.parseRange(a, b, { ...ctx, markDepth: ctx.markDepth + 1 }, 'nested')
+        push({ _type: 'Mark', name, children: inner.nodes, attributes: [] }, close + 2)
+        i = close + 2
+        continue
+      }
+
+      // ── Variable (§5.11) ──────────────────────────────────────────────────
+      if (c === '{' && n === '{') {
+        const end = this.lineEnd(i, to)
+        const close = s.indexOf('}}', i + 2)
+        if (close < 0 || close + 1 >= end) {
+          i = slice(i)
+          continue
+        }
+        const key = s.slice(i + 2, close)
+        if (isIdName(key)) push({ _type: 'Variable', key, attributes: [] }, close + 2)
+        else {
+          if (key !== '') this.diagnostics.push(diag('CDN-0015', undefined, key))
+          text += s.slice(i, close + 2)
+        }
+        i = close + 2
+        continue
+      }
+
+      // ── Attribute group (§6.1) ────────────────────────────────────────────
+      if (c === '{') {
+        const r = scanAttrGroup(s, i, to)
+        if (!r.ok) {
+          text += s.slice(i, r.sliceEnd).replace(/\n/g, '')
+          i = r.sliceEnd
+          continue
+        }
+        const glued = nodeEnd === i && text === ''
+        flush()
+        items.push({
+          group: true,
+          attrs: r.attrs,
+          diagnostics: r.diagnostics,
+          raw: s.slice(i, r.end).replace(/\n/g, ''),
+          glued,
+        })
+        nodeEnd = -1
+        i = r.end
+        continue
+      }
+
+      text += c
+      i++
     }
-    return false
+    flush()
+    return { ...this.finish(items, mode), degraded }
   }
 
-  private findLastNonTextNode(): Inline | null {
-    for (let i = this.nodes.length - 1; i >= 0; i--) {
-      if (this.nodes[i]?.type !== 'Text') return this.nodes[i] || null
+  /**
+   * CDN-0014: a span or link closed while an opener of another kind inside it
+   * was left literal, and that opener's closer comes later in the context.
+   */
+  private crossCheck(inner: string[], own: string, after: number): void {
+    for (const d of inner) {
+      if (d === own) continue
+      if (this.nextOf(d === '[' ? ']' : d, after) >= 0) {
+        this.diagnostics.push(diag('CDN-0014', undefined, `"${own}" closes while "${d}" is open`))
+        return
+      }
     }
-    return null
   }
 
-  private readBracketContent(): string | null {
-    const chars: string[] = []
-    let depth = 0
-    while (this.pos < this.chars.length) {
-      const ch = this.chars[this.pos]
-      // §2.2: `##` inside bracketed text degrades the link — abort.
-      if (ch === '#' && this.chars[this.pos + 1] === '#') return null
-      if (ch === '[') {
-        depth++
-        chars.push(ch)
-        this.pos++
-      } else if (ch === ']') {
-        if (depth > 0) {
-          depth--
-          chars.push(ch)
-          this.pos++
-        } else {
-          this.pos++
-          return chars.join('')
+  /** Resolve `{…}` groups: inline attachment, the trailing chain, or literal text. */
+  private finish(items: Item[], mode: InlineMode): InlineResult {
+    // The trailing run: groups at the end, whitespace between them allowed.
+    let k = items.length - 1
+    const run: number[] = []
+    while (k >= 0) {
+      const it = items[k]!
+      if (isGroup(it)) run.unshift(k)
+      else if (!isWsText(it)) break
+      k--
+    }
+    // A group glued to an inline binds to it, except on a heading (last-attr rule).
+    if (mode !== 'heading' && run.length > 0 && (items[run[0]!] as Group).glued) run.shift()
+    // §6.1.3: a context holding nothing but groups has no segment to claim them.
+    if (mode === 'block' && items.every((it) => isGroup(it) || isWsText(it))) run.length = 0
+    const runStart = run.length > 0 ? run[0]! : items.length
+
+    const out: Item[] = []
+    for (let idx = 0; idx < runStart; idx++) {
+      const it = items[idx]!
+      if (!isGroup(it)) {
+        out.push(it)
+        continue
+      }
+      // Mid-context group: binds to the inline right before it, or is literal.
+      let p = out.length - 1
+      while (p >= 0 && isWsText(out[p]!)) p--
+      const prev = out[p]
+      if (prev && isAttrBearing(prev)) {
+        out.length = p + 1
+        prev.attributes = mergeAttrs(prev.attributes, it.attrs)
+        this.diagnostics.push(...it.diagnostics)
+      } else out.push({ _type: 'Text', value: it.raw })
+    }
+
+    const trailing: Attribute[][] = []
+    if (run.length > 0) {
+      const groups = run.map((idx) => items[idx] as Group)
+      if (mode === 'caption') {
+        this.diagnostics.push(diag('CDN-0009'))
+        for (let idx = runStart; idx < items.length; idx++) {
+          const it = items[idx]!
+          out.push(isGroup(it) ? { _type: 'Text', value: it.raw } : it)
         }
       } else {
-        chars.push(ch || '')
-        this.pos++
-      }
-    }
-    return null
-  }
-
-  private readUntil(terminator: string): string | null {
-    let s = ''
-    while (this.pos < this.chars.length) {
-      if (this.chars[this.pos] === terminator) return s
-      s += this.chars[this.pos++]
-    }
-    return null
-  }
-
-  private readAttrBlock(): { attrs: Attribute[]; diagnostics: Diagnostic[]; valid: boolean; raw: string } | null {
-    if (this.ch() !== '{') return null
-    let depth = 0
-    let end = this.pos
-    while (end < this.chars.length) {
-      if (this.chars[end] === '{') depth++
-      else if (this.chars[end] === '}') {
-        depth--
-        if (depth === 0) {
-          end++
-          break
+        for (const g of groups) {
+          this.diagnostics.push(...g.diagnostics)
+          trailing.push(g.attrs)
         }
+        // Whitespace before a consumed group is consumed with it (§15.1).
+        while (out.length > 0 && isWsText(out[out.length - 1]!)) out.pop()
+        const last = out[out.length - 1]
+        if (last && isText(last)) last.value = trimWsEnd(last.value)
       }
-      end++
     }
-    if (depth !== 0) return null
-    const raw = this.chars.slice(this.pos, end).join('')
-    this.pos = end
-    return { ...parseAttrBlock(raw), raw }
+
+    const nodes = mergeTexts(out as Inline[])
+    if (mode === 'nested' && trailing.length > 0) {
+      distribute(trailing, [nodes], this.diagnostics)
+      return { nodes, trailing: [] }
+    }
+    return { nodes, trailing }
   }
+
+  // ── Link targets (§5.5) ─────────────────────────────────────────────────
+
+  private link(children: Inline[], written: string): Link {
+    const folded = written.replace(/\n/g, '')
+    const base: Link = {
+      _type: 'Link',
+      kind: 'page',
+      children,
+      href: '',
+      raw: '',
+      path: null,
+      target: '',
+      attributes: [],
+    }
+
+    // A SCHEME never crosses a line end, and an escaped `:` is no scheme colon.
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(written)) {
+      if (scalarLength(folded) > LIMITS.valueLength) this.diagnostics.push(diag('CDN-0035'))
+      return { ...base, kind: 'external', href: folded }
+    }
+
+    if (folded === '') {
+      // Wiki link: the plain text of the link text names the page.
+      const title = plainText(children)
+      const { path, climbed } = normalizePath('/' + title)
+      let valid = title !== '' && !climbed && !path.endsWith('/')
+      for (const ch of title) if (isControl(ch) || isBidiControl(ch)) valid = false
+      if (!valid) {
+        this.diagnostics.push(diag('CDN-0032'))
+        return base
+      }
+      return { ...base, path: { path: path + '.cutdown', query: [], fragment: '' } }
+    }
+
+    const sigils: Record<string, LinkKind> = { '#': 'id', '^': 'ref', '~': 'tag', '@': 'cite' }
+    const kind = sigils[folded[0]!]
+    if (kind) {
+      const target = folded.slice(1).replace(/\\(.)/g, '$1')
+      let valid: boolean
+      switch (kind) {
+        case 'id':
+          valid = isIdValue(target)
+          break
+        case 'ref':
+          valid = isIdName(target)
+          break
+        case 'tag':
+          valid = target
+            .split('/')
+            .every(
+              (lv) =>
+                lv !== '' && lv !== '.' && lv !== '..' && ![...lv].some((ch) => isControl(ch) || isBidiControl(ch))
+            )
+          break
+        default:
+          valid = target !== '' && ![...target].some(isControl)
+      }
+      if (!valid) this.diagnostics.push(diag('CDN-0033', undefined, target))
+      return { ...base, kind, target: kind === 'id' ? target.normalize('NFC') : target }
+    }
+
+    const r = readLocator(folded, 'page')
+    this.diagnostics.push(...r.diagnostics)
+    if (r.locator) {
+      if (!hasCutdownExtension(r.locator.path)) r.locator.path += '.cutdown'
+      r.locator.fragment = r.locator.fragment.normalize('NFC')
+    }
+    return { ...base, raw: r.raw, path: r.locator }
+  }
+
+  private image(alt: Inline[], written: string): Inline {
+    const folded = written.replace(/\n/g, '')
+    if (folded.startsWith('https://')) {
+      if (scalarLength(folded) > LIMITS.valueLength) this.diagnostics.push(diag('CDN-0035'))
+      return { _type: 'EmbedImageInline', alt, url: folded, attributes: [] }
+    }
+    const r = readLocator(folded, 'image')
+    this.diagnostics.push(...r.diagnostics)
+    return { _type: 'ImageInline', alt, raw: r.raw, src: r.locator, attributes: [] }
+  }
+}
+
+/** Merge adjacent Text nodes and collapse interior whitespace runs (§15.1). */
+function mergeTexts(nodes: Inline[]): Inline[] {
+  const out: Inline[] = []
+  for (const n of nodes) {
+    const last = out[out.length - 1]
+    if (n._type === 'Text' && last?._type === 'Text') last.value += n.value
+    else out.push(n._type === 'Text' ? { _type: 'Text', value: n.value } : n)
+  }
+  return out
+    .map((n) => (n._type === 'Text' ? { _type: 'Text' as const, value: n.value.replace(/[ \t]+/g, ' ') } : n))
+    .filter((n) => n._type !== 'Text' || n.value !== '')
 }

@@ -11,7 +11,7 @@
 
 // ─── Parser ───────────────────────────────────────────────────────────────────
 
-export { parse } from './parser/index.ts'
+export { parse, LANGUAGE_VERSION } from './parser/index.ts'
 
 // ─── Transform (pipeline + ASTResult) ────────────────────────────────────────
 
@@ -21,16 +21,22 @@ export type { Visitors, Plugin, PluginDelta, Apply } from './transform/types.ts'
 // ─── Document types ───────────────────────────────────────────────────────────
 
 export type {
+  Loc,
   DiagnosticLevel,
   Diagnostic,
+  JsonValue,
+  JsonObject,
+  JsonArray,
   AttributeValue,
   Attribute,
-  AttrsParseResult,
+  LineReflection,
+  SegmentReflection,
+  QueryParam,
+  PathResourceLocator,
 } from './types/document/common.ts'
 
 export type {
   Inline,
-  InlineParseResult,
   LinkKind,
   Text,
   Emphasis,
@@ -40,6 +46,7 @@ export type {
   LineBreak,
   Link,
   ImageInline,
+  EmbedImageInline,
   Mark,
   MathInline,
   Variable,
@@ -56,9 +63,6 @@ export type {
   ColumnAlign,
   SectionLevel,
   MetaFormat,
-  FileGroup,
-  Loc,
-  Reflection,
   Section,
   Paragraph,
   CodeBlock,
@@ -71,15 +75,14 @@ export type {
   Row,
   Cell,
   Column,
-  FileRef,
-  ImageBlock,
-  FileRefGroup,
+  FileBlock,
+  FileGroup,
+  EmbedBlock,
+  InjectBlock,
   NamedBlock,
   RefDefinition,
   MathBlock,
   SpoilerBlock,
-  CommentBlock,
-  Fragment,
 } from './types/document/blocks.ts'
 
 export type { NodeMap } from './types/document/node-map.ts'

@@ -1,8 +1,10 @@
 /**
  * Cutdown conformance test runner.
  *
- * Loads every *.yaml file from the cutdown-spec tests directory,
- * runs the TS parser, and does a deep subset-match against the expected output.
+ * Loads every parser fixture from the cutdown-spec tests directory, runs the
+ * TS parser, and does a deep subset-match against the expected output.
+ * Writer fixtures (`018-canonical-form/`) are skipped: a parser passes every
+ * fixture outside that folder (§20.2), and this package has no writer.
  *
  * Test format:
  *   id, section, description — metadata
@@ -21,6 +23,7 @@ import { parse } from '../index.ts'
 // ─── Paths ────────────────────────────────────────────────────────────────────
 
 const SPEC_TESTS_DIR = resolve('./src/spec/tests')
+const WRITER_FIXTURES = '018-canonical-form'
 
 // ─── Test fixture type ────────────────────────────────────────────────────────
 
@@ -37,9 +40,9 @@ interface Fixture extends Snapshot {
   input: string
   streaming?: {
     /**
-     * Offset unit for `at`. §16 fixtures are authored in unicode scalars
+     * Offset unit for `at`. §19 fixtures are authored in unicode scalars
      * (code points), which is not the same as the UTF-16 code units `loc`
-     * uses (§14) — an astral character advances `at` by 1 and `loc` by 2.
+     * uses (§A.5) — an astral character advances `at` by 1 and `loc` by 2.
      */
     unit?: 'unicode-scalar'
     checkpoints: Array<Snapshot & { at: number }>
@@ -96,7 +99,7 @@ function loadFixtures(): Fixture[] {
     for (const entry of readdirSync(dir)) {
       const full = join(dir, entry)
       if (statSync(full).isDirectory()) {
-        walk(full)
+        if (entry !== WRITER_FIXTURES) walk(full)
         continue
       }
       if (!entry.endsWith('.yaml')) continue
@@ -121,17 +124,17 @@ function loadFixtures(): Fixture[] {
 
 /**
  * Strip undefined fields and convert the AST to a plain object for comparison.
- * Also strips the top-level `type: 'Document'` wrapper.
  */
 function clean(val: unknown): unknown {
   if (val === null || val === undefined) return val
   if (Array.isArray(val)) return val.map(clean)
   if (typeof val === 'object') {
-    const obj: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-      if (v !== undefined) obj[k] = clean(v)
-    }
-    return obj
+    // Object.fromEntries keeps a `__proto__` key as data, as the AST holds it (§6.1.1).
+    return Object.fromEntries(
+      Object.entries(val as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [k, clean(v)])
+    )
   }
   return val
 }
@@ -143,14 +146,14 @@ const fixtures = loadFixtures()
 /**
  * Parse one input and assert it against a snapshot's `ast`/`pages`/`diagnostics`.
  *
- * §16.1 snapshot equivalence: a streaming checkpoint is not a special parse
+ * §19.1 snapshot equivalence: a streaming checkpoint is not a special parse
  * mode. The prefix is an ordinary, complete document and must produce exactly
  * what parsing that text standalone produces — so checkpoints run through this
  * same function as the whole-input case.
  */
 function checkSnapshot(input: string, expected: Snapshot, label: string): void {
   const { ast, diagnostics } = parse(input)
-  const cleanAst = clean(ast) as { type: string; children: unknown[] }
+  const cleanAst = clean(ast) as { _type: string; children: unknown[] }
 
   if (expected.pages !== undefined) {
     // Full pages comparison
@@ -194,7 +197,7 @@ describe('Cutdown conformance', () => {
       const input = fixture.input ?? ''
       checkSnapshot(input, fixture, '')
 
-      // §16 Streaming Conformance Profile — each checkpoint is a prefix of the
+      // §19 Streaming Conformance Profile — each checkpoint is a prefix of the
       // input, parsed as a document in its own right.
       const streaming = fixture.streaming
       if (!streaming) return
