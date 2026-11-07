@@ -1150,7 +1150,8 @@ function parseTable(L: Line[], start: number, st: ParseState): { table: Table; c
   /** Rows a header separator would mark: content rows since the last separator */
   let section: Row[] = []
   let align: ColumnAlign[] | null = null
-  let sepWidth = 0
+  /** Cell count of every header separator, in source order */
+  const sepWidths: number[] = []
   let colCount = -1
   const content: { row: Row; groups: Attribute[][]; inline: Inline[] | null; cells: number }[] = []
   let k = start
@@ -1180,10 +1181,8 @@ function parseTable(L: Line[], start: number, st: ParseState): { table: Table; c
         rows.push(empty)
       } else for (const r of section) r._type = 'Header'
       section = []
-      if (!align) {
-        align = aligns as ColumnAlign[]
-        sepWidth = aligns.length
-      }
+      if (!align) align = aligns as ColumnAlign[]
+      sepWidths.push(aligns.length)
       if (closerGroups && closerGroups.length > 0) distribute([closerGroups[closerGroups.length - 1]!], [table], diags)
       if (comment) rows[rows.length - 1]!.reflections.push(comment)
       continue
@@ -1211,8 +1210,9 @@ function parseTable(L: Line[], start: number, st: ParseState): { table: Table; c
     content.push({ row, groups, inline, cells: row.children.length })
   }
 
-  // Column count: fixed by the first content row with cells (§4.8 Table shape).
-  const count = Math.max(colCount, 0)
+  // Column count: fixed by the first content row with cells, or by the first
+  // header separator when there is none (§4.8 Table shape).
+  const count = colCount >= 0 ? colCount : (sepWidths[0] ?? 0)
   rows.forEach((row, r) => {
     if (row.children.length > count) {
       row.children.length = count
@@ -1222,7 +1222,8 @@ function parseTable(L: Line[], start: number, st: ParseState): { table: Table; c
       row.children.push({ _type: 'Cell', children: [], row: r, column: c })
     for (const cell of row.children) cell.row = r
   })
-  if (align && colCount > 0 && sepWidth > count) diags.push(diag('CDN-0018'))
+  // Every separator wider than the count drops its surplus (§4.8).
+  for (const w of sepWidths) if (w > count) diags.push(diag('CDN-0018'))
   for (let c = 0; c < count; c++) table.columns.push({ _type: 'Column', align: align?.[c] ?? 'start' })
 
   // Row chains: only the last content row reaches the Table (§4.8).
