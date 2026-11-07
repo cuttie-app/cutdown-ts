@@ -132,6 +132,4 @@ export const LIMITS = {
   classes: 32,
   queryPairs: 32,
   valueLength: 2048,
-  jsonLength: 4096,
-  jsonDepth: 8,
 } as const

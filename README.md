@@ -125,7 +125,6 @@ import type {
 
   // Attributes, comments, diagnostics
   Attribute,
-  JsonValue,
   LineReflection,
   SegmentReflection,
   Loc,
@@ -272,7 +271,7 @@ Every node that carries `attributes: Attribute[]` uses this shape:
 type Attribute =
   | { key: 'id'; value: string } // {#my-id}
   | { key: 'class'; value: string[] } // {.foo .bar class="baz"}
-  | { key: string; value: string | JsonObject | JsonArray } // {key=value}, bare {flag}, {data={"a":1}}
+  | { key: string; value: string } // {key=value}, bare {flag}, {t="a \"b\""}
 ```
 
 ---

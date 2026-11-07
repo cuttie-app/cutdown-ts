@@ -21,17 +21,13 @@ export interface Diagnostic {
 
 // ─── Attributes ───────────────────────────────────────────────────────────────
 
-export type JsonValue = null | boolean | number | string | JsonObject | JsonArray
-export type JsonObject = { [key: string]: JsonValue }
-export type JsonArray = JsonValue[]
-
-export type AttributeValue = string | string[] | JsonObject | JsonArray
+export type AttributeValue = string | string[]
 
 /** §A.7 */
 export type Attribute =
   | { key: 'id'; value: string }
   | { key: 'class'; value: string[] }
-  | { key: string; value: string | JsonObject | JsonArray }
+  | { key: string; value: string }
 
 // ─── Reflections ─────────────────────────────────────────────────────────────
 

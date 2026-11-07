@@ -1,5 +1,4 @@
 import type { Attribute, Diagnostic } from '../types/document'
-import { parseJsonValue } from './json.ts'
 import { LIMITS, diag, isControl, isIdChar, isIdValue, isUnicodeWs, trimWsEnd } from './utils.ts'
 
 export type AttrScan =
@@ -64,29 +63,48 @@ export function scanAttrGroup(s: string, i: number, to: number = s.length): Attr
           const d = s[p]
           if (p >= to || d === undefined || d === '\n') return fail()
           if (d === '"') break
+          const t = valueToken(s, p, to)
+          if (t > 0) {
+            out += s.slice(p, t)
+            p = t
+            continue
+          }
           if (d === '\\') {
             const e = s[p + 1]
             if (e === undefined || e === '\n' || isControl(e)) return fail()
-            // §6.1.1: `\"` gives `"`; `\\` and every other pair stay for the consumer.
-            out += e === '"' ? '"' : d + e
+            out += unescape(e)
             p += 2
             continue
           }
-          if (isControl(d)) return fail()
+          if (isControl(d) || d === '{' || d === '}') return fail()
           out += d
           p++
         }
         p++
         if (!g.value(key, out)) return fail()
-      } else if (v === '{' || v === '[') {
-        const json = parseJsonValue(s.slice(0, to), p)
-        if (!json || key === 'id' || key === 'class') return fail()
-        p = json.end
-        g.json(key, json.value)
       } else {
-        const start = p
-        while (p < to && !isSep(s[p]) && s[p] !== '}' && s[p] !== '"' && !isControl(s[p]!)) p++
-        if (!g.value(key, s.slice(start, p))) return fail()
+        // §6.1.1: an unquoted value never begins with `[`.
+        if (v === '[') return fail()
+        let out = ''
+        while (p < to && !isSep(s[p]) && s[p] !== '}') {
+          const d = s[p]!
+          const t = valueToken(s, p, to)
+          if (t > 0) {
+            out += s.slice(p, t)
+            p = t
+            continue
+          }
+          if (d === '"' || d === '{' || isControl(d)) return fail()
+          const e = s[p + 1]
+          if (d === '\\' && e !== undefined && !isSep(e) && !isUnicodeWs(e) && !isControl(e)) {
+            out += unescape(e)
+            p += 2
+            continue
+          }
+          out += d
+          p++
+        }
+        if (!g.value(key, out)) return fail()
       }
     } else return fail()
   }
@@ -96,21 +114,40 @@ export function scanAttrGroup(s: string, i: number, to: number = s.length): Attr
 const isClassChar = (c: string) =>
   c !== '\n' && !isUnicodeWs(c) && !isControl(c) && c !== '{' && c !== '}' && c !== '"' && c !== '=' && c !== '#'
 
-/** End of a dead `{` slice: the closing `}` or the end of the `{`'s own line. */
+/**
+ * §6.1.1 A `\"`, `\{` or `\}` pair gives its character; every other pair is
+ * kept as written for the consumer.
+ */
+const unescape = (e: string) => (e === '"' || e === '{' || e === '}' ? e : '\\' + e)
+
+/**
+ * §6.1.1 VALUE_TOKEN: `{{key}}` or `\{{key}}` at `p`, kept as written. Returns
+ * the token's end, or -1. Tried before a backslash pair.
+ */
+function valueToken(s: string, p: number, to: number): number {
+  let k = s[p] === '\\' ? p + 1 : p
+  if (s[k] !== '{' || s[k + 1] !== '{') return -1
+  k += 2
+  const start = k
+  while (k < to && isIdChar(s[k])) k++
+  if (k === start || s[k] !== '}' || s[k + 1] !== '}' || k + 2 > to) return -1
+  return k + 2
+}
+
+/**
+ * End of a dead `{` slice: the group's first `}` that is neither escaped nor
+ * part of an interpolation token (§6.1.1), or the end of the `{`'s own line.
+ */
 function sliceEnd(s: string, i: number, to: number): number {
-  let depth = 0
-  let inString = false
-  for (let k = i; k < to; k++) {
+  for (let k = i + 1; k < to; k++) {
     const c = s[k]
     if (c === '\n') return k
-    if (inString) {
-      if (c === '\\') k++
-      else if (c === '"') inString = false
-      continue
-    }
-    if (c === '"') inString = true
-    else if (c === '{') depth++
-    else if (c === '}' && --depth === 0) return k + 1
+    const t = valueToken(s, k, to)
+    if (t > 0) k = t - 1
+    else if (c === '\\') {
+      if (s[k + 1] === '\n') return k + 1
+      k++
+    } else if (c === '}') return k + 1
   }
   return to
 }
@@ -188,15 +225,6 @@ class GroupBuilder {
     this.keys.add(key)
     this.add({ key, value })
     return true
-  }
-
-  json(key: string, value: Attribute['value']): void {
-    if (this.keys.has(key)) {
-      this.diagnostics.push(diag('CDN-0022', undefined, key))
-      return
-    }
-    this.keys.add(key)
-    this.add({ key, value } as Attribute)
   }
 
   finish(): { attrs: Attribute[]; diagnostics: Diagnostic[] } {
